@@ -1,5 +1,75 @@
 import os
 from argparse import ArgumentParser
+import pandas as pd
+import torch
+
+from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data import TensorDataset
+from transformers import BertTokenizer
+import sys
+
+
+
+
+def create_iters(path, order, batch_size):
+    """
+    Function that takes a data file as input, applies processing as required by BERT,
+    maps words to IDs, returns DataLoader iterable.
+    :param path: path to data file
+    :param order: determines sampling order when creating DataLoaders
+        if arg == 'random':
+            sampler = RandomSampler   [this should be used for training set]
+        if arg == 'sequential'
+            sampler = SequentialSampler     [this should be used for dev/test sets]
+    :param batch_size:
+    :return:
+    """
+    # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
+    data_df = pd.read_csv(path, sep='\t')
+    sentences = data_df.Tweet.values
+    labels = data_df[['anger', 'anticipation', 'disgust', 'fear', 'joy',
+       'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust']].values
+
+    # add BERT-required formatting; tokenize with desired BertTokenizer
+    # Load Tokenizer
+    print('Loading Tokenizer..')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+    input_ids = []
+    for sentence in sentences:
+        sentence_ids = tokenizer.encode(
+            sentence,
+            add_special_tokens = True,
+            max_length = 64,
+            pad_to_max_length = True
+        )
+        input_ids.append(torch.tensor(sentence_ids))
+
+    # Convert input_ids and labels to tensors;
+    input_ids = torch.stack(input_ids, dim=0)
+    labels = torch.tensor(labels)
+
+    # Load tensors into torch Dataset object
+    dataset = TensorDataset(input_ids, labels)
+    # Determine what sampling mode should be used
+    if order == 'random':
+        sampler = RandomSampler(dataset)
+    elif order == 'sequential':
+        sampler = SequentialSampler(dataset)
+
+    # Create DataLoader object
+    dataloader = DataLoader(dataset,
+                            sampler = sampler,
+                            batch_size = batch_size
+                            )
+    return dataloader
+
+# Here is some code for testing
+test_iter = create_iters(path='./data/sem_eval_2018/test.txt',
+                         order='sequential',
+                         batch_size=64)
+for batch in test_iter:
+    print(len(batch[0]))
+    sys.exit()
 
 
 def get_pytorch_device(args):

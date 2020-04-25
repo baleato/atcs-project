@@ -8,6 +8,7 @@ from util import get_args, get_pytorch_device
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
+from transformers import BertTokenier
 
 args = get_args()
 device = get_pytorch_device(args)
