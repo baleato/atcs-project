@@ -5,11 +5,11 @@ import torch
 
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset
+
 from transformers import BertTokenizer
+from transformers import BertForMultipleChoice, AdamW, BertConfig
+
 import sys
-
-
-
 
 def create_iters(path, order, batch_size):
     """
@@ -63,14 +63,32 @@ def create_iters(path, order, batch_size):
                             )
     return dataloader
 
-# Here is some code for testing
-test_iter = create_iters(path='./data/sem_eval_2018/test.txt',
-                         order='sequential',
-                         batch_size=64)
-for batch in test_iter:
-    print(len(batch[0]))
-    sys.exit()
+# # Here is some code for testing
+# test_iter = create_iters(path='./data/sem_eval_2018/test.txt',
+#                          order='sequential',
+#                          batch_size=64)
+# for batch in test_iter:
+#     print(len(batch[0]))
+#     sys.exit()
 
+def load_model():
+    """
+    this function loads a pre-trained bert-base-uncased model instance with a multi-label
+    classification layer on top. Running it for the first time will take about half a
+    minute or so, as the parameters need to be downloaded to your machine.
+    :return:
+    """
+    print('Loading pre-trained BERT')
+    model = BertForMultipleChoice.from_pretrained(
+        "bert-base-uncased",  # Use the 12-layer BERT model, with an uncased vocab.
+        num_labels=11,
+        output_attentions=False,  # Whether the model returns attentions weights.
+        output_hidden_states=False,  # Whether the model returns all hidden-states.
+    )
+
+    return model
+
+bertybert = load_model()
 
 def get_pytorch_device(args):
     if torch.cuda.is_available():
