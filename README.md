@@ -6,9 +6,20 @@ This repository performs meta-learning across multiple NLP tasks focusing on pra
 
 Python 3, PyTorch, Transformers, Tokenizers
 
-## Download datasets
+## Tasks & datasets
 
-TBD
+- Emotion classification
+- Sarcasm detection
+- Sentiment classification
+- Abusive language detection
+- Politeness
+
+To download the datasets go to the data directory and execute the download script:
+
+```sh
+$ cd data
+$ sh download.sh
+```
 
 ## Running examples
 
