@@ -63,7 +63,7 @@ def main():
     device = get_pytorch_device(args)
 
     print("Creating DataLoaders")
-    train_iter = create_iters(path='./data/sem_eval_2018/train.txt',
+    train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
                          order='random',
                          batch_size=32)
     model = load_model()
