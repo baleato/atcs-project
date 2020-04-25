@@ -44,8 +44,8 @@ def train(iter, model):
             # Reset .grad attributes for weights
             optimizer.zero_grad()
 
-            # Extract the sentence_ids and target vector
-            sentences = batch[0]
+            # Extract the sentence_ids and target vector, send sentences to GPU
+            sentences = batch[0].to(device)
             labels = batch[1]
 
             # Feed sentences into BERT instance, compute loss, perform backward pass, update weights.
