@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset
 
 from transformers import BertTokenizer
-from transformers import BertForMultipleChoice, AdamW, BertConfig
+from transformers import BertForSequenceClassification, AdamW, BertConfig
 
 import sys
 
@@ -39,7 +39,7 @@ def create_iters(path, order, batch_size):
         sentence_ids = tokenizer.encode(
             sentence,
             add_special_tokens = True,
-            max_length = 64,
+            max_length = 32,
             pad_to_max_length = True
         )
         input_ids.append(torch.tensor(sentence_ids))
@@ -79,7 +79,7 @@ def load_model():
     :return:
     """
     print('Loading pre-trained BERT')
-    model = BertForMultipleChoice.from_pretrained(
+    model = BertForSequenceClassification.from_pretrained(
         "bert-base-uncased",  # Use the 12-layer BERT model, with an uncased vocab.
         num_labels=11,
         output_attentions=False,  # Whether the model returns attentions weights.
