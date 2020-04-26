@@ -7,7 +7,7 @@ from torch import load
 import torch.nn as nn
 import torch
 
-from util import get_args, get_pytorch_device, create_iters, load_model
+from util import get_args, get_pytorch_device, create_iters, get_model, load_model, save_model
 from torch.utils.tensorboard import SummaryWriter
 from models import MLPClassifier
 
@@ -25,6 +25,11 @@ def train(iter, model, classifier, params, args):
     print(header)
     # Iterate over the data
     iterations, running_loss = 0, 0.0
+
+    # If resuming from a snapshot, add previous number of iterations to iterations.
+    if args.resume_snapshot:
+        iterations = iterations + args.snapshot
+
     for epoch in range(10):
         for batch in iter:
             # Reset .grad attributes for weights
@@ -54,6 +59,12 @@ def train(iter, model, classifier, params, args):
                 writer.add_scalar('training loss', running_loss / args.log_every, iterations)
                 running_loss = 0.0
             print(log_template.format(loss.item(), emo_micro, emo_macro))
+
+            # Save model checkpoints.
+            if iterations % args.save_every == 0:
+                save_model(model=model, name='BERT', iterations=iterations)
+                save_model(model=classifier, name='MLP', iterations=iterations)
+
     writer.close()
 
 
@@ -69,12 +80,19 @@ if __name__ == '__main__':
                          batch_size=args.batch_size)
 
 
-    # TODO: Allow for resuming a previously trained model
-    # Load instance of BERT
-    model = load_model()
+    #TODO: extend load_model function with task argument for MLP
 
-    # Defining a custom MLP for emotion classification
-    classifier = MLPClassifier(input_dim=768, target_dim=11)
+    # Option to load existing checkpoint for BERT / MLP
+    if args.resume_snapshot:
+        print ("Loading models from snapshot")
+        model = get_model()
+        model = load_model(model=model, name='BERT', iterations=args.snapshot)
+
+        classifier = MLPClassifier(input_dim=768, target_dim=11)
+        classifier = load_model(model=classifier, name='MLP', iterations=args.snapshot)
+    else:
+        model = get_model()
+        classifier = MLPClassifier(input_dim=768, target_dim=11)
 
     # Option to freeze BERT parameters
     if args.freeze_bert:

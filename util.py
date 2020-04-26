@@ -71,7 +71,7 @@ def create_iters(path, order, batch_size):
 #     print(len(batch[0]))
 #     sys.exit()
 
-def load_model():
+def get_model():
     """
     this function loads a pre-trained bert-base-uncased model instance with a multi-label
     classification layer on top. Running it for the first time will take about half a
@@ -82,6 +82,25 @@ def load_model():
     model = BertModel.from_pretrained("bert-base-uncased")
     return model
 
+def save_model(model, name, iterations):
+    current_directory = os.getcwd()
+    final_directory = os.path.join(current_directory, r'model_checkpoints')
+    if not os.path.exists(final_directory):
+        os.makedirs(final_directory)
+
+    path = "./model_checkpoints/{}_{}.pt".format(name,iterations)
+    torch.save(model.state_dict(), path)
+
+def load_model(model, name, iterations):
+    current_directory = os.getcwd()
+    final_directory = os.path.join(current_directory, r'model_checkpoints')
+    if not os.path.exists(final_directory):
+        print('No such folder: {}'.format(final_directory))
+        sys.exit()
+    else:
+        path = "./model_checkpoints/{}_{}.pt".format(name,iterations)
+        model.load_state_dict(torch.load(path))
+        return model
 
 def get_pytorch_device(args):
     if torch.cuda.is_available():
@@ -101,8 +120,9 @@ def get_args():
     parser.add_argument('--freeze_bert', default=False, action='store_true')
     parser.add_argument('--freeze_num', type=int, default=199)
     parser.add_argument('--resume_snapshot', type=str, default='')
+    parser.add_argument('--snapshot', type=int, default=10)
     parser.add_argument('--max_epochs', type=int, default=50)
-    parser.add_argument('--save_every', type=int, default=1000)
+    parser.add_argument('--save_every', type=int, default=10)
     parser.add_argument('--log_every', type=int, default=50)
     parser.add_argument('--dp_ratio', type=int, default=0.2)
     parser.add_argument('--lr',type=float, default=.1)
