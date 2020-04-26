@@ -7,10 +7,10 @@ import torch.nn as nn
 
 from util import get_args, get_pytorch_device, create_iters, load_model
 from torch.utils.tensorboard import SummaryWriter
+from models import MLPClassifier
+
 from datetime import datetime
-
 import torch.optim as optim
-
 
 def train(iter, model, args):
     # Define optimizers and loss function
@@ -21,9 +21,7 @@ def train(iter, model, args):
     # Iterate over the data
     iterations, running_loss = 0, 0.0
     for epoch in range(10):
-        epoch_loss = []
-        for i, batch in enumerate(iter):
-
+        for batch in iter:
             # Reset .grad attributes for weights
             optimizer.zero_grad()
 
@@ -38,8 +36,6 @@ def train(iter, model, args):
             loss = criterion(predictions, labels)
             loss.backward()
             optimizer.step()
-
-            epoch_loss.append(loss.item())
 
             running_loss += loss.item()
             if iterations % args.log_every == 0:
@@ -56,11 +52,17 @@ if __name__ == '__main__':
     print("Creating DataLoaders")
     train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
                          order='random',
-                         batch_size=32)
+                         batch_size=args.batch_size)
 
 
     # TODO: Allow for resuming a previously trained model
-    model = load_model()
-    model = model.to(device)
 
+    # Load instance of BERT
+    model = load_model()
+
+    # Replacing the BERT classifier with a custom MLP
+    classifier = MLPClassifier(input_dim=768, target_dim=11)
+    model.classifier = classifier
+
+    model = model.to(device)
     results = train(train_iter, model, args)

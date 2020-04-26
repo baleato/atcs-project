@@ -13,3 +13,17 @@ class MetaLearner(nn.Module):
     def forward(self, inputs):
         # TODO: use BERT
         return self.classifier(inputs)
+
+
+class MLPClassifier(nn.Module):
+    """
+    Class for Multi-Layer Perceptron Classifier
+    """
+    def __init__(self, input_dim, target_dim):
+        super(MLPClassifier, self).__init__()
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, target_dim)
+        )
+    def forward(self, input):
+        output = self.network(input)
+        return output
