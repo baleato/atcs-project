@@ -98,6 +98,8 @@ def get_args():
     parser.add_argument('--dataset_root', type=str, default=os.path.join(os.getcwd(), '.data'))
     parser.add_argument('--save_path', type=str, default='results')
     parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--freeze_bert', default=False, action='store_true')
+    parser.add_argument('--freeze_num', type=int, default=199)
     parser.add_argument('--resume_snapshot', type=str, default='')
     parser.add_argument('--max_epochs', type=int, default=50)
     parser.add_argument('--save_every', type=int, default=1000)

@@ -13,9 +13,9 @@ from models import MLPClassifier
 from datetime import datetime
 import torch.optim as optim
 
-def train(iter, model, classifier, args):
+def train(iter, model, classifier, params, args):
     # Define optimizers and loss function
-    optimizer = optim.Adam(params=model.parameters(), lr=0.00002)
+    optimizer = optim.Adam(params=params, lr=0.00002)
     criterion = nn.BCEWithLogitsLoss()
 
     writer = SummaryWriter(os.path.join(args.save_path, 'runs', '{}'.format(datetime.now())))
@@ -50,6 +50,8 @@ def train(iter, model, classifier, args):
 
 if __name__ == '__main__':
     args = get_args()
+    for key, value in vars(args).items():
+        print(key + ' : ' + str(value))
     device = get_pytorch_device(args)
 
     print("Creating DataLoaders")
@@ -63,8 +65,19 @@ if __name__ == '__main__':
     # Load instance of BERT
     model = load_model()
 
-    # Replacing the BERT classifier with a custom MLP
+    # Defining a custom MLP for emotion classification
     classifier = MLPClassifier(input_dim=768, target_dim=11)
 
+    # Option to freeze BERT parameters
+    if args.freeze_bert:
+        print('Freezing the first {} BERT layers'.format(args.freeze_num))
+        for i, param in enumerate(model.parameters()):
+            param.requires_grad = False
+            if i+1 == args.freeze_num:
+                break
+
+    # Define params to send to optimizer
+    params = list(classifier.parameters()) + list(model.parameters())
+
     model = model.to(device)
-    results = train(train_iter, model, classifier, args)
+    results = train(train_iter, model, classifier, params, args)
