@@ -5,31 +5,12 @@ import sys
 from torch import load
 import torch.nn as nn
 
-# from model import MetaLearner
 from util import get_args, get_pytorch_device, create_iters, load_model
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
 import torch.optim as optim
 
-
-args = get_args()
-device = get_pytorch_device(args)
-
-# # TODO: check that we can load learner with bert the same way
-# if args.resume_snapshot:
-#     model = load(args.resume_snapshot, map_location=device)
-# else:
-#     model = MetaLearner(config)
-#     model.to(device)
-
-# TODO: Load datasets splits
-
-writer = SummaryWriter(os.path.join(args.save_path, 'runs', '{}'.format(datetime.now())))
-
-# TODO: training loop
-
-writer.close()
 
 def train(iter, model):
     # Define optimizers and loss function
@@ -58,7 +39,7 @@ def train(iter, model):
             epoch_loss.append(loss.item())
             print(loss.item())
 
-def main():
+if __name__ == '__main__':
     args = get_args()
     device = get_pytorch_device(args)
 
@@ -66,9 +47,10 @@ def main():
     train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
                          order='random',
                          batch_size=32)
+
+
+    # TODO: Allow for resuming a previously trained model
     model = load_model()
     model = model.to(device)
 
     results = train(train_iter, model)
-
-main()
