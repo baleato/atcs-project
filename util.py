@@ -88,7 +88,6 @@ def load_model():
 
     return model
 
-bertybert = load_model()
 
 def get_pytorch_device(args):
     if torch.cuda.is_available():
