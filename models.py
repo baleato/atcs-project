@@ -16,7 +16,6 @@ class MetaLearner(nn.Module):
         return self.classifier(inputs)
 
 
-
 class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
@@ -26,6 +25,7 @@ class MLPClassifier(nn.Module):
         self.network = nn.Sequential(
             nn.Linear(input_dim, target_dim)
         )
+
     def forward(self, input):
         output = self.network(input)
         output = torch.mean(output, dim=1)

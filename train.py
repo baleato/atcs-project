@@ -7,26 +7,31 @@ from torch import load
 import torch.nn as nn
 import torch
 
-from util import get_args, get_pytorch_device, create_iters, get_model, load_model, save_model
+from util import (
+    get_args, get_pytorch_device, create_iters, get_model, load_model,
+    save_model)
 from torch.utils.tensorboard import SummaryWriter
 from models import MLPClassifier
 
 from datetime import datetime
 import torch.optim as optim
 
+
 def train(iter, model, classifier, params, args):
     # Define optimizers and loss function
     optimizer = optim.Adam(params=params, lr=0.00002)
     criterion = nn.BCEWithLogitsLoss()
 
-    writer = SummaryWriter(os.path.join(args.save_path, 'runs', '{}'.format(datetime.now())))
+    writer = SummaryWriter(
+        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now())))
     header = '      Loss      Micro      Macro'
     log_template = '{:10.6f} {:10.6f} {:10.6f}'
     print(header)
     # Iterate over the data
     iterations, running_loss = 0, 0.0
 
-    # If resuming from a snapshot, add previous number of iterations to iterations.
+    # When resuming a snapshot, continue on the previous number of iterations.
+    # FIXME: consider getting this value from the stored snapshot itself
     if args.resume_snapshot:
         iterations = iterations + args.snapshot
 
@@ -39,7 +44,8 @@ def train(iter, model, classifier, params, args):
             sentences = batch[0].to(device)
             labels = batch[1]
 
-            # Feed sentences into BERT instance, compute loss, perform backward pass, update weights.
+            # Feed sentences into BERT instance, compute loss, perform backward
+            # pass, update weights.
             output = model(sentences)[0]
             predictions = classifier(output)
 
@@ -49,18 +55,22 @@ def train(iter, model, classifier, params, args):
 
             # Compute accuracy
             threshold = 0
-            pred_labels = (predictions.clone().detach() > threshold).type_as(labels)
+            pred_labels = (
+                predictions.clone().detach() > threshold).type_as(labels)
             emo_micro = jaccard_score(pred_labels, labels, average='micro')
             emo_macro = jaccard_score(pred_labels, labels, average='macro')
 
             running_loss += loss.item()
             iterations += 1
             if iterations % args.log_every == 0:
-                writer.add_scalar('training loss', running_loss / args.log_every, iterations)
+                writer.add_scalar(
+                    'training loss',
+                    running_loss / args.log_every, iterations)
                 running_loss = 0.0
             print(log_template.format(loss.item(), emo_micro, emo_macro))
 
-            # TODO: figure out way to make BERT files smaller / e.g. by not saving redundant parameters
+            # TODO: figure out way to make BERT files smaller / e.g. by not
+            # saving redundant parameters
             # Save model checkpoints.
             if iterations % args.save_every == 0:
                 save_model(model=model, name='BERT', iterations=iterations)
@@ -77,20 +87,21 @@ if __name__ == '__main__':
 
     print("Creating DataLoaders")
     train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
-                         order='random',
-                         batch_size=args.batch_size)
+                              order='random',
+                              batch_size=args.batch_size)
 
-
-    #TODO: extend load_model function with task argument for MLP
+    # TODO: extend load_model function with task argument for MLP
 
     # Option to load existing checkpoint for BERT / MLP
     if args.resume_snapshot:
-        print ("Loading models from snapshot")
+        print("Loading models from snapshot")
         model = get_model()
         model = load_model(model=model, name='BERT', iterations=args.snapshot)
 
         classifier = MLPClassifier(input_dim=768, target_dim=11)
-        classifier = load_model(model=classifier, name='MLP', iterations=args.snapshot)
+        classifier = load_model(model=classifier,
+                                name='MLP',
+                                iterations=args.snapshot)
     else:
         model = get_model()
         classifier = MLPClassifier(input_dim=768, target_dim=11)
@@ -108,5 +119,5 @@ if __name__ == '__main__':
 
     model = model.to(device)
     classifier = classifier.to(device)
-    
+
     results = train(train_iter, model, classifier, params, args)

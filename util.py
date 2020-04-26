@@ -7,40 +7,45 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset
 
 from transformers import BertTokenizer
-from transformers import BertForSequenceClassification, AdamW, BertConfig, BertModel
+from transformers import BertForSequenceClassification, AdamW, BertConfig, \
+    BertModel
 
 import sys
 
+
 def create_iters(path, order, batch_size):
     """
-    Function that takes a data file as input, applies processing as required by BERT,
-    maps words to IDs, returns DataLoader iterable.
+    Function that takes a data file as input, applies processing as required by
+    BERT, maps words to IDs, returns DataLoader iterable.
     :param path: path to data file
     :param order: determines sampling order when creating DataLoaders
         if arg == 'random':
-            sampler = RandomSampler   [this should be used for training set]
+            sampler = RandomSampler     [this should be used for training set]
         if arg == 'sequential'
-            sampler = SequentialSampler     [this should be used for dev/test sets]
+            sampler = SequentialSampler [this should be used for dev/test sets]
     :param batch_size:
     :return:
     """
     # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
     data_df = pd.read_csv(path, sep='\t')
     sentences = data_df.Tweet.values
-    labels = data_df[['anger', 'anticipation', 'disgust', 'fear', 'joy',
-       'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust']].values
+    labels = data_df[[
+        'anger', 'anticipation', 'disgust', 'fear', 'joy',
+        'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
+    ]].values
 
     # add BERT-required formatting; tokenize with desired BertTokenizer
     # Load Tokenizer
     print('Loading Tokenizer..')
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased',
+                                              do_lower_case=True)
     input_ids = []
     for sentence in sentences:
         sentence_ids = tokenizer.encode(
             sentence,
-            add_special_tokens = True,
-            max_length = 32,
-            pad_to_max_length = True
+            add_special_tokens=True,
+            max_length=32,
+            pad_to_max_length=True
         )
         input_ids.append(torch.tensor(sentence_ids))
 
@@ -58,8 +63,8 @@ def create_iters(path, order, batch_size):
 
     # Create DataLoader object
     dataloader = DataLoader(dataset,
-                            sampler = sampler,
-                            batch_size = batch_size
+                            sampler=sampler,
+                            batch_size=batch_size
                             )
     return dataloader
 
@@ -71,16 +76,19 @@ def create_iters(path, order, batch_size):
 #     print(len(batch[0]))
 #     sys.exit()
 
+
 def get_model():
     """
-    this function loads a pre-trained bert-base-uncased model instance with a multi-label
-    classification layer on top. Running it for the first time will take about half a
-    minute or so, as the parameters need to be downloaded to your machine.
+    this function loads a pre-trained bert-base-uncased model instance with a
+    multi-label classification layer on top. Running it for the first time will
+    take about half a minute or so, as the parameters need to be downloaded to
+    your machine.
     :return:
     """
     print('Loading pre-trained BERT')
     model = BertModel.from_pretrained("bert-base-uncased")
     return model
+
 
 def save_model(model, name, iterations):
     current_directory = os.getcwd()
@@ -88,8 +96,9 @@ def save_model(model, name, iterations):
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
 
-    path = "./model_checkpoints/{}_{}.pt".format(name,iterations)
+    path = "./model_checkpoints/{}_{}.pt".format(name, iterations)
     torch.save(model.state_dict(), path)
+
 
 def load_model(model, name, iterations):
     current_directory = os.getcwd()
@@ -98,9 +107,10 @@ def load_model(model, name, iterations):
         print('No such folder: {}'.format(final_directory))
         sys.exit()
     else:
-        path = "./model_checkpoints/{}_{}.pt".format(name,iterations)
+        path = "./model_checkpoints/{}_{}.pt".format(name, iterations)
         model.load_state_dict(torch.load(path))
         return model
+
 
 def get_pytorch_device(args):
     if torch.cuda.is_available():
@@ -114,7 +124,8 @@ def get_pytorch_device(args):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--dataset_root', type=str, default=os.path.join(os.getcwd(), '.data'))
+    parser.add_argument('--dataset_root', type=str,
+                        default=os.path.join(os.getcwd(), '.data'))
     parser.add_argument('--save_path', type=str, default='results')
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--freeze_bert', default=False, action='store_true')
@@ -125,6 +136,6 @@ def get_args():
     parser.add_argument('--save_every', type=int, default=10)
     parser.add_argument('--log_every', type=int, default=50)
     parser.add_argument('--dp_ratio', type=int, default=0.2)
-    parser.add_argument('--lr',type=float, default=.1)
+    parser.add_argument('--lr', type=float, default=.1)
     args = parser.parse_args()
     return args
