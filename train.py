@@ -60,6 +60,7 @@ def train(iter, model, classifier, params, args):
                 running_loss = 0.0
             print(log_template.format(loss.item(), emo_micro, emo_macro))
 
+            # TODO: figure out way to make BERT files smaller / e.g. by not saving redundant parameters
             # Save model checkpoints.
             if iterations % args.save_every == 0:
                 save_model(model=model, name='BERT', iterations=iterations)
