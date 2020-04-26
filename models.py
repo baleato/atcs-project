@@ -1,5 +1,6 @@
 import torch.nn as nn
 from transformers import BertModel
+import torch
 
 
 class MetaLearner(nn.Module):
@@ -15,6 +16,7 @@ class MetaLearner(nn.Module):
         return self.classifier(inputs)
 
 
+
 class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
@@ -26,4 +28,5 @@ class MLPClassifier(nn.Module):
         )
     def forward(self, input):
         output = self.network(input)
+        output = torch.mean(output, dim=1)
         return output

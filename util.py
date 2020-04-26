@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset
 
 from transformers import BertTokenizer
-from transformers import BertForSequenceClassification, AdamW, BertConfig
+from transformers import BertForSequenceClassification, AdamW, BertConfig, BertModel
 
 import sys
 
@@ -79,13 +79,7 @@ def load_model():
     :return:
     """
     print('Loading pre-trained BERT')
-    model = BertForSequenceClassification.from_pretrained(
-        "bert-base-uncased",  # Use the 12-layer BERT model, with an uncased vocab.
-        num_labels=11,
-        output_attentions=False,  # Whether the model returns attentions weights.
-        output_hidden_states=False,  # Whether the model returns all hidden-states.
-    )
-
+    model = BertModel.from_pretrained("bert-base-uncased")
     return model
 
 
