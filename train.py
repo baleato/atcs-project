@@ -61,7 +61,6 @@ if __name__ == '__main__':
 
 
     # TODO: Allow for resuming a previously trained model
-
     # Load instance of BERT
     model = load_model()
 
@@ -80,4 +79,6 @@ if __name__ == '__main__':
     params = list(classifier.parameters()) + list(model.parameters())
 
     model = model.to(device)
+    classifier = classifier.to(device)
+    
     results = train(train_iter, model, classifier, params, args)
