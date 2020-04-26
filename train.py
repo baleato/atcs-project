@@ -2,6 +2,7 @@ import os
 import time
 import sys
 
+from sklearn.metrics import jaccard_score
 from torch import load
 import torch.nn as nn
 import torch
@@ -19,6 +20,9 @@ def train(iter, model, classifier, params, args):
     criterion = nn.BCEWithLogitsLoss()
 
     writer = SummaryWriter(os.path.join(args.save_path, 'runs', '{}'.format(datetime.now())))
+    header = '      Loss      Micro      Macro'
+    log_template = '{:10.6f} {:10.6f} {:10.6f}'
+    print(header)
     # Iterate over the data
     iterations, running_loss = 0, 0.0
     for epoch in range(10):
@@ -33,18 +37,23 @@ def train(iter, model, classifier, params, args):
             # Feed sentences into BERT instance, compute loss, perform backward pass, update weights.
             output = model(sentences)[0]
             predictions = classifier(output)
-            labels = labels.type_as(predictions)
 
-            loss = criterion(predictions, labels)
+            loss = criterion(predictions, labels.type_as(predictions))
             loss.backward()
             optimizer.step()
+
+            # Compute accuracy
+            threshold = 0
+            pred_labels = (predictions.clone().detach() > threshold).type_as(labels)
+            emo_micro = jaccard_score(pred_labels, labels, average='micro')
+            emo_macro = jaccard_score(pred_labels, labels, average='macro')
 
             running_loss += loss.item()
             iterations += 1
             if iterations % args.log_every == 0:
                 writer.add_scalar('training loss', running_loss / args.log_every, iterations)
                 running_loss = 0.0
-            print(loss.item())
+            print(log_template.format(loss.item(), emo_micro, emo_macro))
     writer.close()
 
 
