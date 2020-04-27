@@ -4,7 +4,7 @@ import sys
 import glob
 from datetime import timedelta
 
-from sklearn.metrics import jaccard_score
+from sklearn.metrics import jaccard_score, f1_score
 from torch import load
 import torch.nn as nn
 import torch
@@ -22,9 +22,12 @@ import torch.optim as optim
 def evaluate_emo(outputs, gold_labels):
     threshold = 0.5
     pred_labels = (outputs.clone().detach() > threshold).type_as(gold_labels)
-    micro = jaccard_score(pred_labels, gold_labels, average='micro')
-    macro = jaccard_score(pred_labels, gold_labels, average='macro')
-    return micro, macro
+    accuracy = jaccard_score(pred_labels, gold_labels, average='samples')
+    f1_micro = f1_score(pred_labels, gold_labels, average='micro',
+                        zero_division=0)
+    f1_macro = f1_score(pred_labels, gold_labels, average='macro',
+                        zero_division=0)
+    return accuracy, f1_micro, f1_macro
 
 
 def train(model, args, device):
@@ -45,16 +48,19 @@ def train(model, args, device):
     writer = SummaryWriter(
         os.path.join(args.save_path, 'runs', '{}'.format(datetime.now())))
     header = '      Time   Epoch  Iteration   Progress  %Epoch       ' + \
-        'Loss   Dev/Loss      Micro    Dev/Micro      Macro    Dev/Macro'
+        'Loss   Dev/Loss     Accuracy      Dev/Acc   F1_Micro    Dev/Micro' + \
+        '   F1_Macro    Dev/Macro'
     log_template = '{:>10} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
-        '{:10.6f}            {:10.6f}              {:10.6f}'
+        '{:10.6f}           {:10.6f}              {:10.6f}' + \
+        '              {:10.6f}'
     dev_log_template = '{:>10} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:6.0f}' + \
-        '            {:10.6f}            {:12.6f}            {:12.6f}'
+        '            {:10.6f}              {:12.6f}              {:12.6f}' + \
+        '            {:12.6f}'
     print(header)
     start = time.time()
 
     # Iterate over the data
-    best_dev_micro = -1
+    best_dev_acc = -1
     iterations, running_loss = 0, 0.0
     for epoch in range(args.max_epochs):
         model.train()
@@ -77,39 +83,41 @@ def train(model, args, device):
             running_loss += loss.item()
             iterations += 1
             if iterations % args.log_every == 0:
-                emo_micro, emo_macro = evaluate_emo(predictions, labels)
+                acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
                 iter_loss = running_loss / args.log_every
+                writer.add_scalar('training accuracy', acc, iterations)
                 writer.add_scalar('training loss', iter_loss, iterations)
-                writer.add_scalar('training micro', emo_micro, iterations)
-                writer.add_scalar('training macro', emo_macro, iterations)
+                writer.add_scalar('training micro', f1_micro, iterations)
+                writer.add_scalar('training macro', f1_macro, iterations)
                 print(log_template.format(
                     str(timedelta(seconds=int(time.time() - start))),
                     epoch,
                     iterations,
                     batch_idx+1, len(train_iter),
                     (batch_idx+1) / len(train_iter) * 100,
-                    iter_loss, emo_micro, emo_macro))
+                    iter_loss, acc, f1_micro, f1_macro))
                 running_loss = 0.0
 
             # saving redundant parameters
             # Save model checkpoints.
             if iterations % args.save_every == 0:
-                emo_micro, emo_macro = evaluate_emo(predictions, labels)
+                acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
                 snapshot_prefix = os.path.join(args.save_path, 'snapshot')
                 snapshot_path = snapshot_prefix + \
-                    '_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}_iter_{}_model.pt' \
-                    .format(emo_micro, emo_macro, loss.item(), iterations)
+                    '_acc_{:.4f}_f1micro_{:.4f}_f1macro_{:.4f}_loss_{:.6f}' + \
+                    '_iter_{}_model.pt' \
+                    .format(acc, f1_micro, f1_macro, loss.item(), iterations)
                 save_model(model, snapshot_path)
                 # Keep only the last snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
                         os.remove(f)
-
+            break
         # ============================ EVALUATION ============================
         model.eval()
 
         # calculate accuracy on validation set
-        sum_dev_loss, sum_micro, sum_macro = 0, 0, 0
+        sum_dev_loss, sum_dev_acc, sum_dev_micro, sum_dev_macro = 0, 0, 0, 0
         with torch.no_grad():
             for dev_batch in dev_iter:
                 sentences = dev_batch[0].to(device)
@@ -119,12 +127,14 @@ def train(model, args, device):
                 batch_dev_loss = criterion(outputs, labels.type_as(outputs))
                 sum_dev_loss += batch_dev_loss.item()
                 # Accuracy
-                emo_micro, emo_macro = evaluate_emo(outputs, labels)
-                sum_micro += emo_micro
-                sum_macro += emo_macro
+                acc, f1_micro, f1_macro = evaluate_emo(outputs, labels)
+                sum_dev_acc += acc
+                sum_dev_micro += f1_micro
+                sum_dev_macro += f1_macro
+        dev_acc = sum_dev_acc / len(dev_iter)
         dev_loss = sum_dev_loss / len(dev_iter)
-        dev_micro = sum_micro / len(dev_iter)
-        dev_macro = sum_macro / len(dev_iter)
+        dev_micro = sum_dev_micro / len(dev_iter)
+        dev_macro = sum_dev_macro / len(dev_iter)
 
         print(dev_log_template.format(
                 str(timedelta(seconds=int(time.time() - start))),
@@ -132,17 +142,20 @@ def train(model, args, device):
                 iterations,
                 batch_idx+1, len(train_iter),
                 (batch_idx+1) / len(train_iter) * 100,
-                dev_loss, dev_micro, dev_macro))
+                dev_loss, dev_acc, dev_micro, dev_macro))
 
+        writer.add_scalar('dev accuracy', dev_acc, iterations)
         writer.add_scalar('dev loss', dev_loss, iterations)
-        writer.add_scalar('dev micro', dev_micro, iterations)
-        writer.add_scalar('dev macro', dev_macro, iterations)
+        writer.add_scalar('dev f1_micro', dev_micro, iterations)
+        writer.add_scalar('dev f1_macro', dev_macro, iterations)
 
-        if best_dev_micro < dev_micro:
+        if best_dev_acc < dev_acc:
+            best_dev_acc = dev_acc
             snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
             snapshot_path = snapshot_prefix + \
-                '_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}_iter_{}_model.pt' \
-                .format(dev_micro, dev_macro, dev_loss, iterations)
+                '_acc_{:.4f}_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}' + \
+                '_iter_{}_model.pt' \
+                .format(dev_acc, dev_micro, dev_macro, dev_loss, iterations)
             save_model(model, snapshot_path)
             # Keep only the best snapshot
             for f in glob.glob(snapshot_prefix + '*'):
