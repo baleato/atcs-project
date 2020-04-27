@@ -54,6 +54,7 @@ def train(model, args, device):
     start = time.time()
 
     # Iterate over the data
+    best_dev_micro = -1
     iterations, running_loss = 0, 0.0
     for epoch in range(args.max_epochs):
         model.train()
@@ -137,7 +138,16 @@ def train(model, args, device):
         writer.add_scalar('dev micro', dev_micro, iterations)
         writer.add_scalar('dev macro', dev_macro, iterations)
 
-        # TODO: Store model with best performing on dev set
+        if best_dev_micro < dev_micro:
+            snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
+            snapshot_path = snapshot_prefix + \
+                '_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}_iter_{}_model.pt' \
+                .format(dev_micro, dev_macro, dev_loss, iterations)
+            save_model(model, snapshot_path)
+            # Keep only the best snapshot
+            for f in glob.glob(snapshot_prefix + '*'):
+                if f != snapshot_path:
+                    os.remove(f)
 
     writer.close()
 
