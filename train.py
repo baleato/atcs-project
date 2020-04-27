@@ -103,10 +103,11 @@ def train(model, args, device):
             if iterations % args.save_every == 0:
                 acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
                 snapshot_prefix = os.path.join(args.save_path, 'snapshot')
-                snapshot_path = snapshot_prefix + \
-                    '_acc_{:.4f}_f1micro_{:.4f}_f1macro_{:.4f}_loss_{:.6f}' + \
-                    '_iter_{}_model.pt' \
-                    .format(acc, f1_micro, f1_macro, loss.item(), iterations)
+                snapshot_path = (
+                        snapshot_prefix +
+                        '_acc_{:.4f}_f1micro_{:.4f}_f1macro_{:.4f}' +
+                        '_loss_{:.6f}_iter_{}_model.pt'
+                    ).format(acc, f1_micro, f1_macro, loss.item(), iterations)
                 save_model(model, snapshot_path)
                 # Keep only the last snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
@@ -152,10 +153,11 @@ def train(model, args, device):
         if best_dev_acc < dev_acc:
             best_dev_acc = dev_acc
             snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
-            snapshot_path = snapshot_prefix + \
-                '_acc_{:.4f}_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}' + \
-                '_iter_{}_model.pt' \
-                .format(dev_acc, dev_micro, dev_macro, dev_loss, iterations)
+            snapshot_path = (
+                    snapshot_prefix +
+                    '_acc_{:.4f}_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}' +
+                    '_iter_{}_model.pt'
+                ).format(dev_acc, dev_micro, dev_macro, dev_loss, iterations)
             save_model(model, snapshot_path)
             # Keep only the best snapshot
             for f in glob.glob(snapshot_prefix + '*'):
