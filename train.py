@@ -1,6 +1,7 @@
 import os
 import time
 import sys
+import glob
 
 from sklearn.metrics import jaccard_score
 from torch import load
@@ -11,32 +12,35 @@ from util import (
     get_args, get_pytorch_device, create_iters, get_model, load_model,
     save_model)
 from torch.utils.tensorboard import SummaryWriter
-from models import MLPClassifier
+from models import MetaLearner
 
 from datetime import datetime
 import torch.optim as optim
 
 
-def train(iter, model, classifier, params, args):
+def train(model, args):
+    print("Creating DataLoaders")
+    train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
+                              order='random',
+                              batch_size=args.batch_size)
+
     # Define optimizers and loss function
-    optimizer = optim.Adam(params=params, lr=0.00002)
+    optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
     criterion = nn.BCEWithLogitsLoss()
 
+    # Define logging
+    os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
         os.path.join(args.save_path, 'runs', '{}'.format(datetime.now())))
     header = '      Loss      Micro      Macro'
     log_template = '{:10.6f} {:10.6f} {:10.6f}'
     print(header)
+
     # Iterate over the data
     iterations, running_loss = 0, 0.0
-
-    # When resuming a snapshot, continue on the previous number of iterations.
-    # FIXME: consider getting this value from the stored snapshot itself
-    if args.resume_snapshot:
-        iterations = iterations + args.snapshot
-
-    for epoch in range(10):
-        for batch in iter:
+    for epoch in range(args.max_epochs):
+        model.train()
+        for batch in train_iter:
             # Reset .grad attributes for weights
             optimizer.zero_grad()
 
@@ -46,15 +50,14 @@ def train(iter, model, classifier, params, args):
 
             # Feed sentences into BERT instance, compute loss, perform backward
             # pass, update weights.
-            output = model(sentences)[0]
-            predictions = classifier(output)
+            predictions = model(sentences)
 
             loss = criterion(predictions, labels.type_as(predictions))
             loss.backward()
             optimizer.step()
 
             # Compute accuracy
-            threshold = 0
+            threshold = 0.5
             pred_labels = (
                 predictions.clone().detach() > threshold).type_as(labels)
             emo_micro = jaccard_score(pred_labels, labels, average='micro')
@@ -69,12 +72,23 @@ def train(iter, model, classifier, params, args):
                 running_loss = 0.0
             print(log_template.format(loss.item(), emo_micro, emo_macro))
 
-            # TODO: figure out way to make BERT files smaller / e.g. by not
             # saving redundant parameters
             # Save model checkpoints.
             if iterations % args.save_every == 0:
-                save_model(model=model, name='BERT', iterations=iterations)
-                save_model(model=classifier, name='MLP', iterations=iterations)
+                snapshot_prefix = os.path.join(args.save_path, 'snapshot')
+                snapshot_path = snapshot_prefix + \
+                    '_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}_iter_{}_model.pt' \
+                    .format(emo_micro, emo_macro, loss.item(), iterations)
+                save_model(model, snapshot_path)
+                # Keep only the last snapshot
+                for f in glob.glob(snapshot_prefix + '*'):
+                    if f != snapshot_path:
+                        os.remove(f)
+
+        # TODO:
+        # - Evaluate model on dev set
+        # - Store model with best performing on dev set
+        # - Log dev set results
 
     writer.close()
 
@@ -85,39 +99,11 @@ if __name__ == '__main__':
         print(key + ' : ' + str(value))
     device = get_pytorch_device(args)
 
-    print("Creating DataLoaders")
-    train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
-                              order='random',
-                              batch_size=args.batch_size)
-
-    # TODO: extend load_model function with task argument for MLP
-
-    # Option to load existing checkpoint for BERT / MLP
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = get_model()
-        model = load_model(model=model, name='BERT', iterations=args.snapshot)
-
-        classifier = MLPClassifier(input_dim=768, target_dim=11)
-        classifier = load_model(model=classifier,
-                                name='MLP',
-                                iterations=args.snapshot)
+        model = load_model(args.resume_snapshot, device)
     else:
-        model = get_model()
-        classifier = MLPClassifier(input_dim=768, target_dim=11)
+        model = MetaLearner(args)
+        model.to(device)
 
-    # Option to freeze BERT parameters
-    if args.freeze_bert:
-        print('Freezing the first {} BERT layers'.format(args.freeze_num))
-        for i, param in enumerate(model.parameters()):
-            param.requires_grad = False
-            if i+1 == args.freeze_num:
-                break
-
-    # Define params to send to optimizer
-    params = list(classifier.parameters()) + list(model.parameters())
-
-    model = model.to(device)
-    classifier = classifier.to(device)
-
-    results = train(train_iter, model, classifier, params, args)
+    results = train(model, args)

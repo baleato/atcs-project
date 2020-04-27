@@ -1,19 +1,26 @@
+from collections import deque
+
 import torch.nn as nn
 from transformers import BertModel
-import torch
 
 
 class MetaLearner(nn.Module):
-
     def __init__(self, config):
         super(MetaLearner, self).__init__()
-        # TODO: include BERT
-        # TODO: define classifier
-        self.classifier
+        self.encoder = BertModel.from_pretrained("bert-base-uncased")
+        self.encoder.requires_grad_(False)
+        # TODO: unfreeze top n layers
+        # top_n_bert_layers = deque(
+        #    self.encoder.parameters(),
+        #    maxlen=config.n_layers_bert_trained)
+        # for params in top_n_bert_layers:
+        #   params.requires_grad = True
+        self.emo_classifier = MLPClassifier(768, 11)
 
-    def forward(self, inputs):
-        # TODO: use BERT
-        return self.classifier(inputs)
+    def forward(self, sentences):
+        encoded = self.encoder(sentences)[0]
+        cls_token_enc = encoded[:, 0, :]
+        return self.emo_classifier(cls_token_enc)
 
 
 class MLPClassifier(nn.Module):
@@ -28,5 +35,4 @@ class MLPClassifier(nn.Module):
 
     def forward(self, input):
         output = self.network(input)
-        output = torch.mean(output, dim=1)
         return output

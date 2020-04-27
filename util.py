@@ -90,26 +90,13 @@ def get_model():
     return model
 
 
-def save_model(model, name, iterations):
-    current_directory = os.getcwd()
-    final_directory = os.path.join(current_directory, r'model_checkpoints')
-    if not os.path.exists(final_directory):
-        os.makedirs(final_directory)
-
-    path = "./model_checkpoints/{}_{}.pt".format(name, iterations)
-    torch.save(model.state_dict(), path)
+def save_model(model, path):
+    # FIXME: make model size smaller by only saving the trainable parameters
+    torch.save(model, path)
 
 
-def load_model(model, name, iterations):
-    current_directory = os.getcwd()
-    final_directory = os.path.join(current_directory, r'model_checkpoints')
-    if not os.path.exists(final_directory):
-        print('No such folder: {}'.format(final_directory))
-        sys.exit()
-    else:
-        path = "./model_checkpoints/{}_{}.pt".format(name, iterations)
-        model.load_state_dict(torch.load(path))
-        return model
+def load_model(path, device):
+    return torch.load(path, map_location=device)
 
 
 def get_pytorch_device(args):
@@ -127,13 +114,12 @@ def get_args():
     parser.add_argument('--dataset_root', type=str,
                         default=os.path.join(os.getcwd(), '.data'))
     parser.add_argument('--save_path', type=str, default='results')
-    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--freeze_bert', default=False, action='store_true')
     parser.add_argument('--freeze_num', type=int, default=199)
     parser.add_argument('--resume_snapshot', type=str, default='')
-    parser.add_argument('--snapshot', type=int, default=10)
     parser.add_argument('--max_epochs', type=int, default=50)
-    parser.add_argument('--save_every', type=int, default=10)
+    parser.add_argument('--save_every', type=int, default=1000)
     parser.add_argument('--log_every', type=int, default=50)
     parser.add_argument('--dp_ratio', type=int, default=0.2)
     parser.add_argument('--lr', type=float, default=.1)
