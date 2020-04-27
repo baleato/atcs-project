@@ -51,10 +51,10 @@ def train(model, args, device):
         'Loss   Dev/Loss     Accuracy      Dev/Acc   F1_Micro    Dev/Micro' + \
         '   F1_Macro    Dev/Macro'
     log_template = '{:>10} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
-        '{:10.6f}           {:10.6f}              {:10.6f}' + \
+        '{:10.6f}              {:10.6f}              {:10.6f}' + \
         '              {:10.6f}'
     dev_log_template = '{:>10} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:6.0f}' + \
-        '            {:10.6f}              {:12.6f}              {:12.6f}' + \
+        '            {:10.6f}              {:12.6f}            {:12.6f}' + \
         '            {:12.6f}'
     print(header)
     start = time.time()
