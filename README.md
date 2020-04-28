@@ -27,10 +27,16 @@ Overview of datasets files:
 ```tree
 data/
 ├── download.sh
-└── semeval18_task1_class
-    ├── dev.txt
-    ├── test.txt
-    └── train.txt
+├── offenseval
+│   └── offenseval-training-v1.tsv
+├── semeval18_task1_class
+│   ├── dev.txt
+│   ├── test.txt
+│   └── train.txt
+├── tweet_wassem
+│   └── twitter_data_waseem_hovy.csv
+└── twitter
+    └── sarcasm_detection_shared_task_twitter_training.jsonl
 ```
 
 ## Running examples
