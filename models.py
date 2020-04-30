@@ -29,11 +29,30 @@ class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
     """
-    def __init__(self, input_dim, target_dim):
+    def __init__(self, input_dim, target_dim, hidden_dims=[], nonlinearity=None, dropout=0.0):
         super(MLPClassifier, self).__init__()
-        self.network = nn.Sequential(
-            nn.Linear(input_dim, target_dim)
-        )
+
+        # append input and output dimension to layer list
+        hidden_dims.insert(0, input_dim)
+        hidden_dims.append(target_dim)
+
+        # stack layers with dropout and specified nonlinearity
+        layers = []
+        for h, h_next in zip(hidden_dims, hidden_dims[1:]):
+            layers.append(nn.Linear(h, h_next))
+            if dropout > 0:
+                layers.append(nn.Dropout(p=dropout))
+            if nonlinearity is not None:
+                layers.append(nn.ReLU())
+
+        # remove nonlinearity and dropout for output layer
+        if nonlinearity is not None:
+            layers.pop()
+            if dropout > 0:
+                layers.pop()
+
+        self.network = nn.Sequential(*layers)
+
 
     def forward(self, input):
         output = self.network(input)
