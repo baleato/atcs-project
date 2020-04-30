@@ -47,7 +47,7 @@ def train(model, args, device):
     # Define logging
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
-        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now())))
+        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
     header = '      Time   Epoch  Iteration   Progress  %Epoch       ' + \
         'Loss   Dev/Loss     Accuracy      Dev/Acc   F1_Micro    Dev/Micro' + \
         '   F1_Macro    Dev/Macro'
