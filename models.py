@@ -15,7 +15,9 @@ class MetaLearner(nn.Module):
         #    maxlen=config.n_layers_bert_trained)
         # for params in top_n_bert_layers:
         #   params.requires_grad = True
-        self.emo_classifier = MLPClassifier(768, 11)
+        n_emotions = 11
+        n_bert_embed = 768
+        self.emo_classifier = MLPClassifier(n_bert_embed, n_emotions)
 
     def forward(self, sentences):
         encoded = self.encoder(sentences)[0]
