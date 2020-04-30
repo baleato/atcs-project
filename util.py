@@ -13,7 +13,7 @@ from transformers import BertForSequenceClassification, AdamW, BertConfig, \
 import sys
 
 
-def create_iters(path, order, batch_size):
+def create_iters(path, order, batch_size, path2=''):
     """
     Function that takes a data file as input, applies processing as required by
     BERT, maps words to IDs, returns DataLoader iterable.
@@ -26,13 +26,28 @@ def create_iters(path, order, batch_size):
     :param batch_size:
     :return:
     """
-    # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
-    data_df = pd.read_csv(path, sep='\t')
-    sentences = data_df.Tweet.values
-    labels = data_df[[
-        'anger', 'anticipation', 'disgust', 'fear', 'joy',
-        'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
-    ]].values
+    if 'offenseval' in path:
+        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
+        data_df = pd.read_csv(path, sep='\t')
+        sentences = data_df.tweet.values
+        if 'testset' in path:
+            assert path2 != '', "Missing path to gold labels!"
+            data_df = pd.read_csv(path2, sep=',', header=None)
+            data_df[1].replace(to_replace='OFF', value=1, inplace=True)
+            data_df[1].replace(to_replace='NOT', value=0, inplace=True)
+            labels = data_df[1].values
+        else:
+            data_df.subtask_a.replace(to_replace='OFF', value=1, inplace=True)
+            data_df.subtask_a.replace(to_replace='NOT', value=0, inplace=True)
+            labels = data_df.subtask_a.values
+    else:
+        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
+        data_df = pd.read_csv(path, sep='\t')
+        sentences = data_df.Tweet.values
+        labels = data_df[[
+            'anger', 'anticipation', 'disgust', 'fear', 'joy',
+            'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
+        ]].values
 
     # add BERT-required formatting; tokenize with desired BertTokenizer
     # Load Tokenizer
@@ -114,7 +129,6 @@ def parse_nonlinearity(nonlinearity_str):
         return torch.nn.ReLU()
     else:
         return torch.nn.Tanh()
-
 
 
 def get_args():

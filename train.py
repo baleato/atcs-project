@@ -32,12 +32,13 @@ def evaluate_emo(outputs, gold_labels):
 
 def train(model, args, device):
     print("Creating DataLoaders")
-    train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
+    train_iter = create_iters(path='./data/offenseval/offenseval-training-v1.tsv',
                               order='random',
                               batch_size=args.batch_size)
-    dev_iter = create_iters(path='./data/semeval18_task1_class/dev.txt',
+    dev_iter = create_iters(path='./data/offenseval/testset-levela.tsv',
                             order='random',
-                            batch_size=args.batch_size)
+                            batch_size=args.batch_size,
+                            path2='./data/offenseval/labels-levela.csv')
 
     # Define optimizers and loss function
     optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
