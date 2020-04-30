@@ -2,6 +2,7 @@ from collections import deque
 
 import torch.nn as nn
 from transformers import BertModel
+from util import parse_nonlinearity
 
 
 class MetaLearner(nn.Module):
@@ -43,7 +44,7 @@ class MLPClassifier(nn.Module):
             if dropout > 0:
                 layers.append(nn.Dropout(p=dropout))
             if nonlinearity is not None:
-                layers.append(nn.ReLU())
+                layers.append(parse_nonlinearity(nonlinearity))
 
         # remove nonlinearity and dropout for output layer
         if nonlinearity is not None:

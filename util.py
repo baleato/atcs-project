@@ -108,6 +108,15 @@ def get_pytorch_device(args):
     return device
 
 
+def parse_nonlinearity(nonlinearity_str):
+    assert nonlinearity_str in ['ReLU', 'Tanh'], "Unknown nonlinearity! Please choose one of ['ReLU', 'Tanh']"
+    if nonlinearity_str == 'ReLU':
+        return torch.nn.ReLU()
+    else:
+        return torch.nn.Tanh()
+
+
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('--gpu', type=int, default=0)
