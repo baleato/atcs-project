@@ -91,32 +91,40 @@ def train(model, args, device):
             iterations += 1
             if iterations % args.log_every == 0:
                 acc = accuracy(predictions.argmax(dim=1, keepdim=False), labels.to(device))
+                f1_micro = f1_score(predictions.argmax(dim=1, keepdim=False).detach().cpu(), labels, average='micro',
+                                    zero_division=0)
+                f1_macro = f1_score(predictions.argmax(dim=1, keepdim=False).detach().cpu(), labels, average='macro',
+                                    zero_division=0)
                 #acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
                 iter_loss = running_loss / args.log_every
                 writer.add_scalar('training accuracy', acc, iterations)
                 writer.add_scalar('training loss', iter_loss, iterations)
-                #writer.add_scalar('training micro', f1_micro, iterations)
-                #writer.add_scalar('training macro', f1_macro, iterations)
+                writer.add_scalar('training micro', f1_micro, iterations)
+                writer.add_scalar('training macro', f1_macro, iterations)
                 print(log_template.format(
                     str(timedelta(seconds=int(time.time() - start))),
                     epoch,
                     iterations,
                     batch_idx+1, len(train_iter),
                     (batch_idx+1) / len(train_iter) * 100,
-                    iter_loss, acc, 0,0))#f1_micro, f1_macro))
+                    iter_loss, acc, f1_micro, f1_macro))
                 running_loss = 0.0
 
             # saving redundant parameters
             # Save model checkpoints.
             if iterations % args.save_every == 0:
                 acc = accuracy(predictions.argmax(dim=1, keepdim=False), labels.to(device))
+                f1_micro = f1_score(predictions.argmax(dim=1, keepdim=False).detach().cpu(), labels, average='micro',
+                                    zero_division=0)
+                f1_macro = f1_score(predictions.argmax(dim=1, keepdim=False).detach().cpu(), labels, average='macro',
+                                    zero_division=0)
                 #acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
                 snapshot_prefix = os.path.join(args.save_path, 'snapshot')
                 snapshot_path = (
                         snapshot_prefix +
                         '_acc_{:.4f}_f1micro_{:.4f}_f1macro_{:.4f}' +
                         '_loss_{:.6f}_iter_{}_model.pt'
-                    ).format(acc, 0, 0, loss.item(), iterations)
+                    ).format(acc, f1_micro, f1_macro, loss.item(), iterations)
                 save_model(model, snapshot_path)
                 # Keep only the last snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
@@ -138,10 +146,14 @@ def train(model, args, device):
                 sum_dev_loss += batch_dev_loss.item()
                 # Accuracy
                 acc = accuracy(outputs.argmax(dim=1,keepdim=False), labels.to(device))
+                f1_micro = f1_score(outputs.argmax(dim=1, keepdim=False).detach().cpu(), labels, average='micro',
+                                    zero_division=0)
+                f1_macro = f1_score(outputs.argmax(dim=1, keepdim=False).detach().cpu(), labels, average='macro',
+                                    zero_division=0)
                 #acc, f1_micro, f1_macro = evaluate_emo(outputs, labels)
                 sum_dev_acc += acc
-                sum_dev_micro += 0#f1_micro
-                sum_dev_macro += 0#f1_macro
+                sum_dev_micro += f1_micro
+                sum_dev_macro += f1_macro
         dev_acc = sum_dev_acc / len(dev_iter)
         dev_loss = sum_dev_loss / len(dev_iter)
         dev_micro = sum_dev_micro / len(dev_iter)
@@ -157,8 +169,8 @@ def train(model, args, device):
 
         writer.add_scalar('dev accuracy', dev_acc, iterations)
         writer.add_scalar('dev loss', dev_loss, iterations)
-        #writer.add_scalar('dev f1_micro', dev_micro, iterations)
-        #writer.add_scalar('dev f1_macro', dev_macro, iterations)
+        writer.add_scalar('dev f1_micro', dev_micro, iterations)
+        writer.add_scalar('dev f1_macro', dev_macro, iterations)
 
         if best_dev_acc < dev_acc:
             best_dev_acc = dev_acc
