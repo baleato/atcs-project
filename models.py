@@ -6,7 +6,7 @@ from util import parse_nonlinearity
 
 
 class MetaLearner(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, n_classes=11):
         super(MetaLearner, self).__init__()
         self.encoder = BertModel.from_pretrained("bert-base-uncased")
         self.encoder.requires_grad_(False)
@@ -16,9 +16,8 @@ class MetaLearner(nn.Module):
         #    maxlen=config.n_layers_bert_trained)
         # for params in top_n_bert_layers:
         #   params.requires_grad = True
-        n_emotions = 11
         n_bert_embed = 768
-        self.emo_classifier = MLPClassifier(n_bert_embed, n_emotions)
+        self.emo_classifier = MLPClassifier(n_bert_embed, n_classes)
 
     def forward(self, sentences):
         encoded = self.encoder(sentences)[0]
