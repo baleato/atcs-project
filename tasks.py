@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 
 from util import create_iters
@@ -77,6 +78,12 @@ class SemEval18Task(Task):
             'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
         ]
         self.fn_tokenizer = fn_tokenizer
+        self.splits = {}
+        for split in ['train', 'dev', 'test']:
+            self.splits.setdefault(
+                split,
+                pd.read_table('data/semeval18_task1_class/{}.txt'.format(split)))
+
         # TODO:
         # - pre-process dataset
 
@@ -88,20 +95,22 @@ class SemEval18Task(Task):
         Returns:
             Iterable for the specified split
         """
-        df = pd.read_table('data/semeval18_task1_class/{}.txt'.format(split))
-        if shuffle:
-            df = df.sample(frac=1, random_state=1)
-
+        assert split in ['train', 'dev', 'test']
+        df = self.splits.get(split)
         ix = 0
         while ix < len(df):
             df_batch = df.iloc[ix:ix+batch_size]
             sentences = df_batch.Tweet.values
             labels = df_batch[self.emotions].values
             if self.fn_tokenizer:
-                input_ids = []
                 sentences = self.fn_tokenizer(list(sentences))
             yield sentences, labels
             ix += batch_size
+
+    def get_num_batches(self, split, batch_size=1):
+        assert split in ['train', 'dev', 'test']
+        return math.ceil(len(self.splits.get(split))/batch_size)
+
 
 class SemEval18SingleEmotionTask(Task):
     """

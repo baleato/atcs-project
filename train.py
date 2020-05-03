@@ -8,10 +8,12 @@ from sklearn.metrics import jaccard_score, f1_score
 from torch import load
 import torch.nn as nn
 import torch
+from transformers import BertTokenizer
 
 from util import (
     get_args, get_pytorch_device, create_iters, get_model, load_model,
     save_model)
+from tasks import SemEval18Task
 from torch.utils.tensorboard import SummaryWriter
 from models import MetaLearner
 
@@ -30,14 +32,56 @@ def evaluate_emo(outputs, gold_labels):
     return accuracy, f1_micro, f1_macro
 
 
+def meta_train():
+    """
+    We'll start with binary classifiers (2-way classification)
+    for step in range(num_steps):
+        # Training
+        for i in num_samples:
+            task_batch_train := Sample tasks based on meta_batch_size (training set) (and task frequencies)
+            for task in task_batch_train:
+                forward
+                loss
+                backward
+
+        # Meta-training
+        if step % meta_every == 0:
+            task_batch_test :=  Sample tasks not included in task_batch_train
+                                meta_batch_test_size (> meta_batch_size, all?)
+            for task in task_batch_test:
+                forward
+                loss
+                backward
+
+    params:
+        - tasks
+        - num_classes: number of classes (N in N-way classification.). Default 2.
+        - num_samples: examples for inner gradient update (K in K-shotlearning).
+        - meta_batch_size: number of N-way tasks per batch
+    """
+    pass
+
+
 def train(model, args, device):
+    print('Loading Tokenizer..')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+
+    def fn_tokenizer(sentences):
+        input_ids = []
+        for sentence in sentences:
+            sentence_ids = tokenizer.encode(
+                sentence,
+                add_special_tokens=True,
+                max_length=32,
+                pad_to_max_length=True
+            )
+            input_ids.append(torch.tensor(sentence_ids))
+        # Convert input_ids and labels to tensors;
+        return torch.stack(input_ids, dim=0)
+
     print("Creating DataLoaders")
-    train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
-                              order='random',
-                              batch_size=args.batch_size)
-    dev_iter = create_iters(path='./data/semeval18_task1_class/dev.txt',
-                            order='random',
-                            batch_size=args.batch_size)
+    # TODO: TaskSampler
+    task_sem_eval_2018 = SemEval18Task(fn_tokenizer=fn_tokenizer)
 
     # Define optimizers and loss function
     optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
@@ -62,6 +106,11 @@ def train(model, args, device):
     # Iterate over the data
     best_dev_acc = -1
     iterations, running_loss = 0, 0.0
+    train_iter = task_sem_eval_2018.get_iter('train',
+                                             batch_size=args.batch_size,
+                                             shuffle=True)
+    train_iter_len = task_sem_eval_2018.get_num_batches('train', batch_size=args.batch_size)
+    dev_iter_len = task_sem_eval_2018.get_num_batches('dev', batch_size=args.batch_size)
     for epoch in range(args.max_epochs):
         model.train()
         for batch_idx, batch in enumerate(train_iter):
@@ -70,7 +119,7 @@ def train(model, args, device):
 
             # Extract the sentence_ids and target vector, send sentences to GPU
             sentences = batch[0].to(device)
-            labels = batch[1]
+            labels = torch.tensor(batch[1])
 
             # Feed sentences into BERT instance, compute loss, perform backward
             # pass, update weights.
@@ -93,8 +142,8 @@ def train(model, args, device):
                     str(timedelta(seconds=int(time.time() - start))),
                     epoch,
                     iterations,
-                    batch_idx+1, len(train_iter),
-                    (batch_idx+1) / len(train_iter) * 100,
+                    batch_idx+1, train_iter_len,
+                    (batch_idx+1) / train_iter_len * 100,
                     iter_loss, acc, f1_micro, f1_macro))
                 running_loss = 0.0
 
@@ -120,6 +169,8 @@ def train(model, args, device):
         # calculate accuracy on validation set
         sum_dev_loss, sum_dev_acc, sum_dev_micro, sum_dev_macro = 0, 0, 0, 0
         with torch.no_grad():
+            dev_iter = task_sem_eval_2018.get_iter('dev',
+                                                   batch_size=args.batch_size)
             for dev_batch in dev_iter:
                 sentences = dev_batch[0].to(device)
                 labels = dev_batch[1]
@@ -132,17 +183,17 @@ def train(model, args, device):
                 sum_dev_acc += acc
                 sum_dev_micro += f1_micro
                 sum_dev_macro += f1_macro
-        dev_acc = sum_dev_acc / len(dev_iter)
-        dev_loss = sum_dev_loss / len(dev_iter)
-        dev_micro = sum_dev_micro / len(dev_iter)
-        dev_macro = sum_dev_macro / len(dev_iter)
+        dev_acc = sum_dev_acc / dev_iter_len
+        dev_loss = sum_dev_loss / dev_iter_len
+        dev_micro = sum_dev_micro / dev_iter_len
+        dev_macro = sum_dev_macro / dev_iter_len
 
         print(dev_log_template.format(
                 str(timedelta(seconds=int(time.time() - start))),
                 epoch,
                 iterations,
-                batch_idx+1, len(train_iter),
-                (batch_idx+1) / len(train_iter) * 100,
+                batch_idx+1, train_iter_len,
+                (batch_idx+1) / train_iter_len * 100,
                 dev_loss, dev_acc, dev_micro, dev_macro))
 
         writer.add_scalar('dev accuracy', dev_acc, iterations)
