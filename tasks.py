@@ -7,20 +7,18 @@ from sklearn.metrics import jaccard_score, f1_score
 from models import MLPClassifier
 from util import create_iters
 
+# TODO
 class TaskSampler(object):
     """
     Args:
         tasks: Task's list
         freq_factors: list of sampling frequency factors by task
+        ...
     """
-    def __init__(self, tasks, batch_size):
-        pass
+    pass
 
 
 class Task(object):
-    """
-
-    """
     NAME = 'TASK_NAME'
     def __init__(self):
         pass
@@ -59,6 +57,7 @@ class SemEval18Task(Task):
         self.fn_tokenizer = fn_tokenizer
         self.splits = {}
         self.classifier = MLPClassifier(target_dim=len(self.emotions))
+        self.criterion = BCEWithLogitsLoss()
         for split in ['train', 'dev', 'test']:
             self.splits.setdefault(
                 split,
@@ -84,7 +83,7 @@ class SemEval18Task(Task):
             labels = df_batch[self.emotions].values
             if self.fn_tokenizer:
                 sentences = self.fn_tokenizer(list(sentences))
-            yield sentences, labels
+            yield sentences, torch.tensor(labels)
             ix += batch_size
 
     def get_num_batches(self, split, batch_size=1):
@@ -94,10 +93,11 @@ class SemEval18Task(Task):
     def get_classifier(self):
         return self.classifier
 
-    def get_criterion(self):
-        return BCEWithLogitsLoss()
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions, labels.type_as(predictions))
 
-    def calculate_accuracy(self, predictions, gold_labels):
+    def calculate_accuracy(self, predictions, labels):
+        gold_labels = labels
         threshold = 0.5
         pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
         accuracy = jaccard_score(pred_labels, gold_labels, average='samples')
@@ -116,28 +116,21 @@ class SemEval18SingleEmotionTask(SemEval18Task):
     """
     def __init__(self, emotion, fn_tokenizer=None):
         self.emotion = emotion
-        emotion_absence = '~{}'.format(emotion)
-        # Two classes: emotion and negated(~) emotion
-        self.emotions = [emotion_absence, emotion]
+        self.emotions = [self.emotion]
         self.fn_tokenizer = fn_tokenizer
         self.splits = {}
-        self.classifier = MLPClassifier(target_dim=len(self.emotions))
+        self.classifier = MLPClassifier(target_dim=2)
+        self.criterion = CrossEntropyLoss()
         for split in ['train', 'dev', 'test']:
             df = pd.read_table('data/semeval18_task1_class/{}.txt'.format(split))
             df_emotion = df[df[self.emotion] == 1].copy()
-            df_emotion[emotion_absence] = 0
             df_other = df[df[self.emotion] == 0].sample(df_emotion.shape[0])
-            df_other[emotion_absence] = 1
             self.splits.setdefault(
                 split,
                 pd.concat([df_emotion, df_other]).sample(frac=1, random_state=1))
 
-    def get_num_batches(self, split, batch_size=1):
-        assert split in ['train', 'dev', 'test']
-        return math.ceil(len(self.splits.get(split))/batch_size)
-
-    def get_criterion(self):
-        return CrossEntropyLoss()
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions, labels.reshape(-1))
 
     def calculate_accuracy(self, predictions, labels):
         gold_labels = labels[:, 0]
@@ -147,17 +140,21 @@ class SemEval18SingleEmotionTask(SemEval18Task):
 
 
 class SemEval18AngerTask(SemEval18SingleEmotionTask):
+    NAME = 'SemEval18Anger'
     def __init__(self, fn_tokenizer=None):
         super(SemEval18AngerTask, self).__init__('anger', fn_tokenizer)
 
 class SemEval18AnticipationTask(SemEval18SingleEmotionTask):
+    NAME = 'SemEval18Anticipation'
     def __init__(self, fn_tokenizer=None):
         super(SemEval18AnticipationTask, self).__init__('anticipation', fn_tokenizer)
 
 class SemEval18SurpriseTask(SemEval18SingleEmotionTask):
+    NAME = 'SemEval18Surprise'
     def __init__(self, fn_tokenizer=None):
         super(SemEval18SurpriseTask, self).__init__('surprise', fn_tokenizer)
 
 class SemEval18TrustTask(SemEval18SingleEmotionTask):
+    NAME = 'SemEval18Trust'
     def __init__(self, fn_tokenizer=None):
         super(SemEval18TrustTask, self).__init__('trust', fn_tokenizer)
