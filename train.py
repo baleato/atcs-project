@@ -82,6 +82,8 @@ def train(model, args, device):
     print("Creating DataLoaders")
     # TODO: TaskSampler
     task_sem_eval_2018 = SemEval18Task(fn_tokenizer=fn_tokenizer)
+    model.add_task_classifier(task_sem_eval_2018.NAME,
+                              task_sem_eval_2018.get_classifier())
 
     # Define optimizers and loss function
     optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
@@ -123,7 +125,7 @@ def train(model, args, device):
 
             # Feed sentences into BERT instance, compute loss, perform backward
             # pass, update weights.
-            predictions = model(sentences)
+            predictions = model(sentences, task_sem_eval_2018.NAME)
 
             loss = criterion(predictions, labels.type_as(predictions))
             loss.backward()

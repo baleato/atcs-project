@@ -1,5 +1,6 @@
 import math
 import pandas as pd
+from models import MLPClassifier
 
 from util import create_iters
 
@@ -17,57 +18,25 @@ class Task(object):
     """
 
     """
+    NAME = 'TASK_NAME'
     def __init__(self):
         pass
 
+    # TODO: allow for
+    # train_iter = task.get_iter('train')
+    # len(train_iter) -> returns the number of batches
+    def get_iter(self, split, batch_size=16, shuffle=False, random_state=1):
+        raise NotImplementedError
+
+    def get_num_batches(self, split, batch_size=1):
+        raise NotImplementedError
+
     def get_classifier(self):
-        pass
-
-
-
-
-# TODO:
-# - Use semeval18_task1_class as 11 different tasks
-# - Train on 10 and test in 1
-class DataLoader(object):
-
-    def __init__(self, batch_size, num_samples_per_class):
-        """
-        Args:
-            batch_size
-            num_samples_per_class
-        """
-        pass
-
-
-    # TODO: think how to iterate over batches, if to use iterables
-    def next_batch(self, batch_type):
-        """
-        Iterates over batches
-        Args:
-            batch_type: train/val/test
-        Returns:
-            batch or
-        """
         raise NotImplementedError
 
 
-class MyIter:
-    def __init__(self):
-        self.prev = 0
-        self.curr = 1
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        value = self.curr
-        self.curr += self.prev
-        self.prev = value
-        return value
-
-
 class SemEval18Task(Task):
+    NAME = 'SemEval18'
     """
     Multi-labeled tweet data classified in 11 emotions: anger, anticipation,
     disgust, fear, joy, love, optimism, pessimism, sadness, surprise and trust.
@@ -79,6 +48,7 @@ class SemEval18Task(Task):
         ]
         self.fn_tokenizer = fn_tokenizer
         self.splits = {}
+        self.classifier = MLPClassifier(target_dim=len(self.emotions))
         for split in ['train', 'dev', 'test']:
             self.splits.setdefault(
                 split,
@@ -110,6 +80,9 @@ class SemEval18Task(Task):
     def get_num_batches(self, split, batch_size=1):
         assert split in ['train', 'dev', 'test']
         return math.ceil(len(self.splits.get(split))/batch_size)
+
+    def get_classifier(self):
+        return self.classifier
 
 
 class SemEval18SingleEmotionTask(Task):
