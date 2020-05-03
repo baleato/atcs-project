@@ -1,7 +1,10 @@
 import math
 import pandas as pd
-from models import MLPClassifier
+import torch
+from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, NLLLoss
+from sklearn.metrics import jaccard_score, f1_score
 
+from models import MLPClassifier
 from util import create_iters
 
 class TaskSampler(object):
@@ -32,6 +35,13 @@ class Task(object):
         raise NotImplementedError
 
     def get_classifier(self):
+        raise NotImplementedError
+
+    # TODO: binary classification by default
+    def get_criterion(self):
+        raise NotImplementedError
+
+    def calculate_accuracy(self, predictions, labels):
         raise NotImplementedError
 
 
@@ -84,8 +94,17 @@ class SemEval18Task(Task):
     def get_classifier(self):
         return self.classifier
 
+    def get_criterion(self):
+        return BCEWithLogitsLoss()
 
-class SemEval18SingleEmotionTask(Task):
+    def calculate_accuracy(self, predictions, gold_labels):
+        threshold = 0.5
+        pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
+        accuracy = jaccard_score(pred_labels, gold_labels, average='samples')
+        return accuracy
+
+
+class SemEval18SingleEmotionTask(SemEval18Task):
     """
     Serves as a single emotion tasks. It leverages the SemEval18 dataset which
     contains 11 emotions (anger, anticipation, disgust, fear, joy, love,
@@ -95,33 +114,50 @@ class SemEval18SingleEmotionTask(Task):
     sampling of the remaining entries, creating a balanced dataset for this
     single emotion.
     """
-    def __init__(self, emotion, num_samples=16):
+    def __init__(self, emotion, fn_tokenizer=None):
         self.emotion = emotion
-        self.num_samples = num_samples
+        emotion_absence = '~{}'.format(emotion)
+        # Two classes: emotion and negated(~) emotion
+        self.emotions = [emotion_absence, emotion]
+        self.fn_tokenizer = fn_tokenizer
+        self.splits = {}
+        self.classifier = MLPClassifier(target_dim=len(self.emotions))
+        for split in ['train', 'dev', 'test']:
+            df = pd.read_table('data/semeval18_task1_class/{}.txt'.format(split))
+            df_emotion = df[df[self.emotion] == 1].copy()
+            df_emotion[emotion_absence] = 0
+            df_other = df[df[self.emotion] == 0].sample(df_emotion.shape[0])
+            df_other[emotion_absence] = 1
+            self.splits.setdefault(
+                split,
+                pd.concat([df_emotion, df_other]).sample(frac=1, random_state=1))
 
-    def get_iter(self, split, batch_size=16):
-        """
-        Returns an iterable over the single
-        Args:
-            split: train/dev/test
-        Returns:
-            Iterable for the specified split
-        """
+    def get_num_batches(self, split, batch_size=1):
         assert split in ['train', 'dev', 'test']
+        return math.ceil(len(self.splits.get(split))/batch_size)
 
-        df = pd.read_table('data/semeval18_task1_class/{}.txt'.format(split))
-        df_emotion = df[df[self.emotion] == 1]
-        df_other = df[df[self.emotion] == 0].sample(df_emotion.shape[0])
-        df = pd.concat([df_emotion, df_other]).sample(frac=1, random_state=1)
-        ix = 0
-        while ix < len(df):
-            df_batch = df.iloc[ix:ix+batch_size]
-            sentences = df_batch.Tweet.values
-            labels = df_batch[self.emotion].values
-            yield sentences, labels
-            ix += batch_size
+    def get_criterion(self):
+        return CrossEntropyLoss()
+
+    def calculate_accuracy(self, predictions, labels):
+        gold_labels = labels[:, 0]
+        n_correct = (torch.max(predictions, 1)[1].view(gold_labels.size()) == gold_labels).sum().item()
+        n_total = len(gold_labels)
+        return 100. * n_correct/n_total
 
 
 class SemEval18AngerTask(SemEval18SingleEmotionTask):
-    def __init__(self):
-        super(SemEval18AngerTask, self).__init__('anger')
+    def __init__(self, fn_tokenizer=None):
+        super(SemEval18AngerTask, self).__init__('anger', fn_tokenizer)
+
+class SemEval18AnticipationTask(SemEval18SingleEmotionTask):
+    def __init__(self, fn_tokenizer=None):
+        super(SemEval18AnticipationTask, self).__init__('anticipation', fn_tokenizer)
+
+class SemEval18SurpriseTask(SemEval18SingleEmotionTask):
+    def __init__(self, fn_tokenizer=None):
+        super(SemEval18SurpriseTask, self).__init__('surprise', fn_tokenizer)
+
+class SemEval18TrustTask(SemEval18SingleEmotionTask):
+    def __init__(self, fn_tokenizer=None):
+        super(SemEval18TrustTask, self).__init__('trust', fn_tokenizer)
