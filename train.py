@@ -79,10 +79,12 @@ def train(model, args, device):
             # Extract the sentence_ids and target vector, send sentences to GPU
             sentences = batch[0].to(device)
             labels = batch[1]
+            attention_masks = batch[2].to(device)
 
             # Feed sentences into BERT instance, compute loss, perform backward
             # pass, update weights.
-            predictions = model(sentences)
+            predictions = model(sentences,
+                                attention_mask=attention_masks)
 
             loss = criterion(predictions, labels.to(device))
             loss.backward()

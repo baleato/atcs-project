@@ -25,8 +25,8 @@ class MetaLearner(nn.Module):
         n_bert_embed = 768
         self.emo_classifier = MLPClassifier(n_bert_embed, n_classes)
 
-    def forward(self, sentences):
-        encoded = self.encoder(sentences)[0]
+    def forward(self, sentences, attention_mask=None):
+        encoded = self.encoder(sentences, attention_mask=attention_mask)[0]
         cls_token_enc = encoded[:, 0, :]
         return self.emo_classifier(cls_token_enc)
 
