@@ -40,6 +40,7 @@ def create_iters(path, order, batch_size, path2=''):
             data_df.subtask_a.replace(to_replace='OFF', value=1, inplace=True)
             data_df.subtask_a.replace(to_replace='NOT', value=0, inplace=True)
             labels = data_df.subtask_a.values
+        max_length = 64
     else:
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
         data_df = pd.read_csv(path, sep='\t')
@@ -48,6 +49,7 @@ def create_iters(path, order, batch_size, path2=''):
             'anger', 'anticipation', 'disgust', 'fear', 'joy',
             'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
         ]].values
+        max_length = 32
 
     # add BERT-required formatting; tokenize with desired BertTokenizer
     # Load Tokenizer
@@ -59,7 +61,7 @@ def create_iters(path, order, batch_size, path2=''):
         sentence_ids = tokenizer.encode(
             sentence,
             add_special_tokens=True,
-            max_length=32,
+            max_length=max_length,
             pad_to_max_length=True
         )
         input_ids.append(torch.tensor(sentence_ids))
