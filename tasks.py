@@ -35,8 +35,7 @@ class Task(object):
     def get_classifier(self):
         raise NotImplementedError
 
-    # TODO: binary classification by default
-    def get_criterion(self):
+    def get_loss(self, predictions, labels):
         raise NotImplementedError
 
     def calculate_accuracy(self, predictions, labels):
