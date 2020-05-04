@@ -39,7 +39,9 @@ def evaluate_sarcasm(outputs, labels):
     return acc, f1_macro, f1_micro
 
 
+
 def train(model, args, device, path):
+
     print("Creating DataLoaders")
     train_iter = create_iters(path=path[0],
                               order='random',
@@ -123,7 +125,7 @@ def train(model, args, device, path):
                         '_acc_{:.4f}_f1micro_{:.4f}_f1macro_{:.4f}' +
                         '_loss_{:.6f}_iter_{}_model.pt'
                     ).format(acc, f1_micro, f1_macro, loss.item(), iterations)
-                save_model(model, snapshot_path)
+                save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the last snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -176,7 +178,7 @@ def train(model, args, device, path):
                     '_acc_{:.4f}_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}' +
                     '_iter_{}_model.pt'
                 ).format(dev_acc, dev_micro, dev_macro, dev_loss, iterations)
-            save_model(model, snapshot_path)
+            save_model(model, args.unfreeze_num, snapshot_path)
             # Keep only the best snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
@@ -193,7 +195,8 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = load_model(args.resume_snapshot, device)
+        model = MetaLearner(args)
+        model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
         model = MetaLearner(args)
         model.to(device)
