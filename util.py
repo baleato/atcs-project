@@ -2,6 +2,7 @@ import os
 from argparse import ArgumentParser
 import pandas as pd
 import torch
+from copy import deepcopy
 
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset
@@ -68,14 +69,6 @@ def create_iters(path, order, batch_size):
                             )
     return dataloader
 
-# # Here is some code for testing
-# test_iter = create_iters(path='./data/sem_eval_2018/test.txt',
-#                          order='sequential',
-#                          batch_size=64)
-# for batch in test_iter:
-#     print(len(batch[0]))
-#     sys.exit()
-
 
 def get_model():
     """
@@ -90,13 +83,30 @@ def get_model():
     return model
 
 
-def save_model(model, path):
+def save_model(model, unfreeze_num, snapshot_path):
     # FIXME: make model size smaller by only saving the trainable parameters
-    torch.save(model, path)
+    # FIXME #2: also save optimizer state_dict, epochs, loss, etc
+    # Copy instance of model to avoid mutation while training
+    model_copy = deepcopy(model)
+
+    # Delete frozen layers from model_copy instance, save state_dicts
+    model_copy.encoder.encoder.layer = model_copy.encoder.encoder.layer[-(unfreeze_num):]
+    print('saving BERT instance')
+    torch.save({
+        'BERT_state_dict': model_copy.encoder.state_dict(),
+        'EMO_state_dict' : model_copy.emo_classifier.state_dict(),
+        # 'optimizer_state_dict': optimizer.state_dict(),
+    }, snapshot_path)
 
 
-def load_model(path, device):
-    return torch.load(path, map_location=device)
+def load_model(path, model, unfreeze_num, device):
+    # Load dictionary with BERT and MLP state_dicts
+    checkpoint = torch.load(path, map_location=device)
+    # Overwrite last n BERT blocks, overwrite MLP params
+    untuned_blocks = model.encoder.encoder.layer[-(unfreeze_num):]
+    untuned_blocks = checkpoint['BERT_state_dict']
+    model.emo_classifier.load_state_dict(checkpoint['EMO_state_dict'])
+    return model
 
 
 def get_pytorch_device(args):
@@ -116,7 +126,7 @@ def get_args():
     parser.add_argument('--save_path', type=str, default='results')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--freeze_bert', default=False, action='store_true')
-    parser.add_argument('--freeze_num', type=int, default=199)
+    parser.add_argument('--unfreeze_num', type=int, default=2)
     parser.add_argument('--resume_snapshot', type=str, default='')
     parser.add_argument('--max_epochs', type=int, default=50)
     parser.add_argument('--save_every', type=int, default=200)

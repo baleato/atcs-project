@@ -10,11 +10,20 @@ class MetaLearner(nn.Module):
         self.encoder = BertModel.from_pretrained("bert-base-uncased")
         self.encoder.requires_grad_(False)
         # TODO: unfreeze top n layers
+        for block in self.encoder.encoder.layer[-(config.unfreeze_num):]:
+            for params in block.parameters():
+                params.requires_grad = True
+
+
+
         # top_n_bert_layers = deque(
         #    self.encoder.parameters(),
         #    maxlen=config.n_layers_bert_trained)
         # for params in top_n_bert_layers:
         #   params.requires_grad = True
+
+
+
         n_emotions = 11
         n_bert_embed = 768
         self.emo_classifier = MLPClassifier(n_bert_embed, n_emotions)
