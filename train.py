@@ -37,6 +37,7 @@ def accuracy(pred_labels, labels):
 
 
 def train(model, args, device):
+
     print("Creating DataLoaders")
     train_iter = create_iters(path='./data/offenseval/offenseval-training-v1.tsv',
                               order='random',
@@ -125,7 +126,7 @@ def train(model, args, device):
                         '_acc_{:.4f}_f1micro_{:.4f}_f1macro_{:.4f}' +
                         '_loss_{:.6f}_iter_{}_model.pt'
                     ).format(acc, f1_micro, f1_macro, loss.item(), iterations)
-                save_model(model, snapshot_path)
+                save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the last snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -180,7 +181,7 @@ def train(model, args, device):
                     '_acc_{:.4f}_micro_{:.4f}_macro_{:.4f}_loss_{:.6f}' +
                     '_iter_{}_model.pt'
                 ).format(dev_acc, dev_micro, dev_macro, dev_loss, iterations)
-            save_model(model, snapshot_path)
+            save_model(model, args.unfreeze_num, snapshot_path)
             # Keep only the best snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
@@ -197,7 +198,8 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = load_model(args.resume_snapshot, device)
+        model = MetaLearner(args)
+        model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
         model = MetaLearner(args, n_classes=2)
         model.to(device)
