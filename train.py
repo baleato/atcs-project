@@ -4,10 +4,11 @@ import sys
 import glob
 from datetime import timedelta
 
-from sklearn.metrics import jaccard_score, f1_score
+from sklearn.metrics import jaccard_score, f1_score, accuracy_score
 from torch import load
 import torch.nn as nn
 import torch
+
 
 from util import (
     get_args, get_pytorch_device, create_iters, get_model, load_model,
@@ -29,13 +30,21 @@ def evaluate_emo(outputs, gold_labels):
                         zero_division=0)
     return accuracy, f1_micro, f1_macro
 
+def evaluate_sarcasm(outputs, labels):
+    threshold = 0.5
+    pred_labels = (outputs.clone().detach() > threshold).type_as(labels)
+    acc = accuracy_score(labels, pred_labels)
+    f1_macro = f1_score(labels, pred_labels, average='macro')
+    f1_micro = f1_score(labels, pred_labels, average='micro')
+    return acc, f1_macro, f1_micro
 
-def train(model, args, device):
+
+def train(model, args, device, path):
     print("Creating DataLoaders")
-    train_iter = create_iters(path='./data/semeval18_task1_class/train.txt',
+    train_iter = create_iters(path=path[0],
                               order='random',
                               batch_size=args.batch_size)
-    dev_iter = create_iters(path='./data/semeval18_task1_class/dev.txt',
+    dev_iter = create_iters(path=path[1],
                             order='random',
                             batch_size=args.batch_size)
 
@@ -83,7 +92,10 @@ def train(model, args, device):
             running_loss += loss.item()
             iterations += 1
             if iterations % args.log_every == 0:
-                acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
+                if 'sarcasm' in path[0]:
+                    acc, f1_macro, f1_micro = evaluate_sarcasm(predictions.detach(), labels)
+                else:
+                    acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
                 iter_loss = running_loss / args.log_every
                 writer.add_scalar('training accuracy', acc, iterations)
                 writer.add_scalar('training loss', iter_loss, iterations)
@@ -101,7 +113,10 @@ def train(model, args, device):
             # saving redundant parameters
             # Save model checkpoints.
             if iterations % args.save_every == 0:
-                acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
+                if 'sarcasm' in path[0]:
+                    acc, f1_macro, f1_micro = evaluate_sarcasm(predictions.detach(), labels)
+                else:
+                    acc, f1_micro, f1_macro = evaluate_emo(predictions, labels)
                 snapshot_prefix = os.path.join(args.save_path, 'snapshot')
                 snapshot_path = (
                         snapshot_prefix +
@@ -128,7 +143,10 @@ def train(model, args, device):
                 batch_dev_loss = criterion(outputs, labels.type_as(outputs))
                 sum_dev_loss += batch_dev_loss.item()
                 # Accuracy
-                acc, f1_micro, f1_macro = evaluate_emo(outputs, labels)
+                if 'sarcasm' in path[0]:
+                    acc, f1_macro, f1_micro = evaluate_sarcasm(outputs.detach(), labels)
+                else:
+                    acc, f1_micro, f1_macro = evaluate_emo(outputs, labels)
                 sum_dev_acc += acc
                 sum_dev_micro += f1_micro
                 sum_dev_macro += f1_macro
@@ -180,4 +198,5 @@ if __name__ == '__main__':
         model = MetaLearner(args)
         model.to(device)
 
-    results = train(model, args, device)
+    path = ['./data/twitter/sarcasm_detection_shared_task_twitter_training.jsonl', './data/twitter/sarcasm_twitter_testing.json']
+    results = train(model, args, device, path)

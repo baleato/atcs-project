@@ -12,6 +12,12 @@ if [[ ! -f twitter_training.zip ]]; then
   unzip twitter_training.zip
 fi
 
+if [[ ! -f twitter_testing.zip ]]; then
+  curl -Lo twitter_testing.zip 'https://github.com/EducationalTestingService/sarcasm/releases/download/v2.0/twitter_test.zip'
+  unzip twitter_testing.zip -d twitter
+  mv twitter/twitter_test.jsonl twitter/sarcasm_twitter_test.jsonl
+fi
+
 # Offensive language detection; data/offenseval
 if [[ ! -f OffensEval.zip ]]; then
   curl -Lo OffensEval.zip 'https://drive.google.com/uc?export=download&id=1-ynErP5o7NeV_ZLH_RfQFrw1siJd15tt'

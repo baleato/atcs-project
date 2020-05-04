@@ -2,6 +2,7 @@ import os
 from argparse import ArgumentParser
 import pandas as pd
 import torch
+import numpy as np
 
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset
@@ -26,13 +27,25 @@ def create_iters(path, order, batch_size):
     :param batch_size:
     :return:
     """
-    # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
-    data_df = pd.read_csv(path, sep='\t')
-    sentences = data_df.Tweet.values
-    labels = data_df[[
-        'anger', 'anticipation', 'disgust', 'fear', 'joy',
-        'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
-    ]].values
+    if 'semeval' in path:
+        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
+        data_df = pd.read_csv(path, sep='\t')
+        sentences = data_df.Tweet.values
+        labels = data_df[[
+            'anger', 'anticipation', 'disgust', 'fear', 'joy',
+            'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
+        ]].values
+    elif 'sarcasm' in path:
+        data_df = pd.read_json(path, lines=True)
+        data_df['contextstr'] = ['; '.join(map(str, l)) for l in data_df['context']]
+        data_df['sentence'] = data_df['response'] + data_df['contextstr']
+        msk = np.random.rand(len(data_df)) < 0.8
+        train = data_df[msk]
+        test = data_df[~msk]
+        test.to_json('./data/twitter/sarcasm_twitter_testing.json', orient='records', lines=True)
+        sentences = train.sentence.values
+        labels = np.where(train.label.values == 'SARCASM', 1, 0)
+
 
     # add BERT-required formatting; tokenize with desired BertTokenizer
     # Load Tokenizer
@@ -51,7 +64,7 @@ def create_iters(path, order, batch_size):
 
     # Convert input_ids and labels to tensors;
     input_ids = torch.stack(input_ids, dim=0)
-    labels = torch.tensor(labels)
+    labels = torch.tensor(labels).unsqueeze(1)
 
     # Load tensors into torch Dataset object
     dataset = TensorDataset(input_ids, labels)

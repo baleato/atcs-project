@@ -13,9 +13,9 @@ class MetaLearner(nn.Module):
         # top_n_bert_layers = deque(
         #    self.encoder.parameters(),
         #    maxlen=config.n_layers_bert_trained)
-        # for params in top_n_bert_layers:
+        # for params in top_n_bert _layers:
         #   params.requires_grad = True
-        n_emotions = 11
+        n_emotions = 1
         n_bert_embed = 768
         self.emo_classifier = MLPClassifier(n_bert_embed, n_emotions)
 
