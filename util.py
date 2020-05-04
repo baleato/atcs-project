@@ -39,6 +39,7 @@ def create_iters(path, order, batch_size):
         ]].values
     elif 'sarcasm' in path:
         data_df = pd.read_json(path, lines=True)
+        data_df['context'] = [l[:2] for l in data_df['context']]
         data_df['contextstr'] = ['; '.join(map(str, l)) for l in data_df['context']]
         data_df['sentence'] = data_df['response'] + data_df['contextstr']
         msk = np.random.rand(len(data_df)) < 0.8
@@ -59,7 +60,7 @@ def create_iters(path, order, batch_size):
         sentence_ids = tokenizer.encode(
             sentence,
             add_special_tokens=True,
-            max_length=32,
+            max_length=64,
             pad_to_max_length=True
         )
         input_ids.append(torch.tensor(sentence_ids))
