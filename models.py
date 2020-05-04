@@ -6,7 +6,7 @@ from util import parse_nonlinearity
 
 
 class MetaLearner(nn.Module):
-    def __init__(self, config, n_classes=11):
+    def __init__(self, config):
         super(MetaLearner, self).__init__()
         self.encoder = BertModel.from_pretrained("bert-base-uncased")
         self.encoder.requires_grad_(False)
@@ -22,20 +22,27 @@ class MetaLearner(nn.Module):
         #    maxlen=config.n_layers_bert_trained)
         # for params in top_n_bert_layers:
         #   params.requires_grad = True
-        n_bert_embed = 768
-        self.emo_classifier = MLPClassifier(n_bert_embed, n_classes)
 
-    def forward(self, sentences, attention_mask=None):
-        encoded = self.encoder(sentences, attention_mask=attention_mask)[0]
+    def forward(self, inputs, task_name=None, attention_mask=None):
+        task_module_name = 'task_{}'.format(task_name)
+        assert task_module_name in self._modules
+
+        encoded = self.encoder(inputs, attention_mask=attention_mask)[0]
         cls_token_enc = encoded[:, 0, :]
-        return self.emo_classifier(cls_token_enc)
+        classifier = self._modules[task_module_name]
+        return classifier(cls_token_enc)
+
+    def add_task_classifier(self, task_name, classifier):
+        assert issubclass(type(classifier), nn.Module)
+        self.add_module('task_{}'.format(task_name), classifier)
+
 
 
 class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
     """
-    def __init__(self, input_dim, target_dim, hidden_dims=[], nonlinearity=None, dropout=0.0):
+    def __init__(self, input_dim=768, target_dim=2, hidden_dims=[], nonlinearity=None, dropout=0.0):
         super(MLPClassifier, self).__init__()
 
         # append input and output dimension to layer list
