@@ -177,18 +177,25 @@ print('Loading Tokenizer..')
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
 # TODO: move tokenizer to tasks and always assume BERT for symplicity
-def fn_tokenizer(sentences):
+def fn_tokenizer(sentences, max_length=32):
     input_ids = []
+    attention_masks = []
     for sentence in sentences:
-        sentence_ids = tokenizer.encode(
+        encoded_dict = tokenizer.encode_plus(
             sentence,
             add_special_tokens=True,
-            max_length=32,
-            pad_to_max_length=True
+            max_length=max_length,
+            pad_to_max_length=True,
+            return_attention_mask=True,
+            return_tensors='pt'  # returns results already as pytorch tensors
         )
-        input_ids.append(torch.tensor(sentence_ids))
-    # Convert input_ids and labels to tensors;
-    return torch.stack(input_ids, dim=0)
+        input_ids.append(encoded_dict['input_ids'])
+        attention_masks.append(encoded_dict['attention_mask'])
+
+    # Stack the input_ids, labels and attention_masks
+    input_ids = torch.cat(input_ids, dim=0)
+    attention_masks = torch.cat(attention_masks, dim=0)
+    return input_ids, attention_masks
 
 
 if __name__ == '__main__':

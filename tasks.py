@@ -3,7 +3,8 @@ import pandas as pd
 import torch
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, NLLLoss
 from sklearn.metrics import jaccard_score, f1_score
-
+from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data import TensorDataset
 from models import MLPClassifier
 from util import create_iters
 
@@ -157,3 +158,70 @@ class SemEval18TrustTask(SemEval18SingleEmotionTask):
     NAME = 'SemEval18Trust'
     def __init__(self, fn_tokenizer=None):
         super(SemEval18TrustTask, self).__init__('trust', fn_tokenizer)
+
+
+class OffensevalTask(Task):
+    NAME = 'Offenseval'
+    def __init__(self, fn_tokenizer=None):
+
+        self.fn_tokenizer = fn_tokenizer
+        self.splits = {}
+        self.classifier = MLPClassifier(target_dim=2)
+        self.criterion = BCEWithLogitsLoss()
+        for split in ['train', 'test']:
+            self.splits.setdefault(
+                split,
+                pd.read_table('data/semeval18_task1_class/{}.txt'.format(split)))
+
+    # TODO: allow for
+    # train_iter = task.get_iter('train')
+    # len(train_iter) -> returns the number of batches
+    def get_iter(self, split, batch_size=16, shuffle=True, random_state=1, max_length=64):
+        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
+        if split == 'test':
+            data_df = pd.read_csv('data/offenseval/testset-levela.csv', sep='\t')
+            sentences = data_df.tweet.values
+            data_df_labels = pd.read_csv('data/offenseval/labels-levela.csv', sep=',', header=None)
+            data_df[1].replace(to_replace='OFF', value=1, inplace=True)
+            data_df[1].replace(to_replace='NOT', value=0, inplace=True)
+            labels = data_df[1].values
+        else:
+            data_df = pd.read_csv('data/offenseval/offenseval-training-v1.tsv', sep='\t')
+            sentences = data_df.tweet.values
+            data_df.subtask_a.replace(to_replace='OFF', value=1, inplace=True)
+            data_df.subtask_a.replace(to_replace='NOT', value=0, inplace=True)
+            labels = data_df.subtask_a.values
+
+        input_ids, attention_masks = self.fn_tokenizer(sentences, max_length=max_length)
+
+        # Load tensors into torch Dataset object
+        dataset = TensorDataset(input_ids, labels, attention_masks)
+        # Determine what sampling mode should be used
+        if shuffle:
+            sampler = RandomSampler(dataset)
+        else:
+            sampler = SequentialSampler(dataset)
+
+        # Create DataLoader object
+        dataloader = DataLoader(dataset,
+                                sampler=sampler,
+                                batch_size=batch_size
+                                )
+        return dataloader
+
+    def get_num_batches(self, split, batch_size=1):
+        if split == 'test':
+            return round(860/batch_size + 0.5)
+        else:
+            return round(13241/batch_size + 0.5)
+
+    def get_classifier(self):
+        return self.classifier
+
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions.round(), labels.reshape)
+
+    def calculate_accuracy(self, predictions, labels):
+        bin_labels = predictions == labels
+        correct = bin_labels.sum().float().item()
+        return correct / len(labels)
