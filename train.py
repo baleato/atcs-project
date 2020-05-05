@@ -121,7 +121,7 @@ def train(tasks, model, args, device):
                             snapshot_prefix +
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
-                    save_model(model, snapshot_path)
+                    save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
@@ -167,7 +167,7 @@ def train(tasks, model, args, device):
                         snapshot_prefix +
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
-                save_model(model, snapshot_path)
+                save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -201,7 +201,8 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = load_model(args.resume_snapshot, device)
+        model = MetaLearner(args)
+        model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
         model = MetaLearner(args)
         model.to(device)
