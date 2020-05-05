@@ -178,7 +178,7 @@ def train(tasks, model, args, device):
 print('Loading Tokenizer..')
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
-# TODO: move tokenizer to tasks and always assume BERT for symplicity
+# TODO: move tokenizer to tasks and always assume BERT for simplicity
 def fn_tokenizer(sentences):
     input_ids = []
     for sentence in sentences:
@@ -208,8 +208,9 @@ if __name__ == '__main__':
         print("Tasks")
         tasks = []
         # tasks.append(SemEval18Task(fn_tokenizer=fn_tokenizer))
-        tasks.append(SemEval18SurpriseTask(fn_tokenizer=fn_tokenizer))
-        tasks.append(SemEval18TrustTask(fn_tokenizer=fn_tokenizer))
+        #tasks.append(SemEval18SurpriseTask(fn_tokenizer=fn_tokenizer))
+        #tasks.append(SemEval18TrustTask(fn_tokenizer=fn_tokenizer))
+        tasks.append(SarcasmDetection(fn_tokenizer=fn_tokenizer))
         for task in tasks:
             model.add_task_classifier(task.NAME, task.get_classifier())
     results = train(tasks, model, args, device)
