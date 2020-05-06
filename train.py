@@ -67,14 +67,18 @@ def train(tasks, model, args, device):
     # Define optimizers and loss function
     optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
 
+    # TODO maybe find nicer solution for passing(handling) the tokenizer
+    print('Loading Tokenizer..')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+
     best_dev_acc = -1
     iterations, running_loss = 0, 0.0
     for epoch in range(args.max_epochs):
         for task in tasks:
             # Iterate over the data
-            train_iter = task.get_iter('train', batch_size=args.batch_size, shuffle=True)
+            train_iter = task.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
             train_iter_len = len(train_iter)
-            dev_iter = task.get_iter('dev', batch_size=args.batch_size)
+            dev_iter = task.get_iter('dev', tokenizer, batch_size=args.batch_size)
             dev_iter_len = len(dev_iter)
             model.train()
             for batch_idx, batch in enumerate(train_iter):
@@ -97,7 +101,7 @@ def train(tasks, model, args, device):
                 running_loss += loss.item()
                 iterations += 1
                 if iterations % args.log_every == 0:
-                    acc = task.calculate_accuracy(predictions, labels)
+                    acc = task.calculate_accuracy(predictions, labels.to(device))
                     iter_loss = running_loss / args.log_every
                     writer.add_scalar('{}/Accuracy/train'.format(task.NAME), acc, iterations)
                     writer.add_scalar('{}/Loss/train'.format(task.NAME), iter_loss, iterations)
@@ -164,7 +168,8 @@ def train(tasks, model, args, device):
                         snapshot_prefix +
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
-                save_model(model, snapshot_path)
+                # TODO fix model saving
+                #save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:

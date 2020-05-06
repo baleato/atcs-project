@@ -92,9 +92,7 @@ def create_iters(path, order, batch_size, path2=''):
     return dataloader
 
 
-def bert_tokenizer(sentences, max_length=32):
-    print('Loading Tokenizer..')
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+def bert_tokenizer(sentences, tokenizer, max_length=32):
     input_ids = []
     attention_masks = []
     for sentence in sentences:
