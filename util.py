@@ -116,6 +116,8 @@ def bert_tokenizer(sentences, max_length=32):
 
 
 def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True):
+    """ expects input_ids, labels, attention_masks to be tensors"""
+
     # Load tensors into torch Dataset object
     dataset = TensorDataset(input_ids, labels, attention_masks)
     # Determine what sampling mode should be used

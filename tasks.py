@@ -72,6 +72,7 @@ class SemEval18Task(Task):
         labels = data_df[self.emotions].values
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, max_length=max_length)
+        labels = torch.tensor(labels)
 
         return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
 
@@ -99,20 +100,36 @@ class SemEval18SingleEmotionTask(SemEval18Task):
     sampling of the remaining entries, creating a balanced dataset for this
     single emotion.
     """
-    def __init__(self, emotion, fn_tokenizer=None):
+    def __init__(self, emotion, fn_tokenizer=bert_tokenizer):
         self.emotion = emotion
         self.emotions = [self.emotion]
         self.fn_tokenizer = fn_tokenizer
-        self.splits = {}
         self.classifier = MLPClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
-        for split in ['train', 'dev', 'test']:
-            df = pd.read_table('data/semeval18_task1_class/{}.txt'.format(split))
-            df_emotion = df[df[self.emotion] == 1].copy()
-            df_other = df[df[self.emotion] == 0].sample(df_emotion.shape[0])
-            self.splits.setdefault(
-                split,
-                pd.concat([df_emotion, df_other]).sample(frac=1, random_state=1))
+
+
+    def get_iter(self, split, batch_size=16, shuffle=False, random_state=1, max_length=32):
+        """
+        Returns an iterable over the single
+        Args:
+            split: train/dev/test
+        Returns:
+            Iterable for the specified split
+        """
+        assert split in ['train', 'dev', 'test']
+        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
+        df = pd.read_csv('./data/semeval18_task1_class/{}.txt'.format(split), sep='\t')
+        # select all positive labels for the emotion and an equally sized sample of negative sentences
+        df_emotion = df[df[self.emotion] == 1].copy()
+        df_other = df[df[self.emotion] == 0].sample(df_emotion.shape[0], random_state=1)
+        selected_df = pd.concat([df_emotion, df_other]).sample(frac=1, random_state=1)
+        sentences = selected_df.Tweet.values
+        labels = selected_df[self.emotions].values
+
+        input_ids, attention_masks = self.fn_tokenizer(sentences, max_length=max_length)
+        labels = torch.tensor(labels)
+
+        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_loss(self, predictions, labels):
         return self.criterion(predictions, labels.reshape(-1))
@@ -126,22 +143,22 @@ class SemEval18SingleEmotionTask(SemEval18Task):
 
 class SemEval18AngerTask(SemEval18SingleEmotionTask):
     NAME = 'SemEval18Anger'
-    def __init__(self, fn_tokenizer=None):
+    def __init__(self, fn_tokenizer=bert_tokenizer):
         super(SemEval18AngerTask, self).__init__('anger', fn_tokenizer)
 
 class SemEval18AnticipationTask(SemEval18SingleEmotionTask):
     NAME = 'SemEval18Anticipation'
-    def __init__(self, fn_tokenizer=None):
+    def __init__(self, fn_tokenizer=bert_tokenizer):
         super(SemEval18AnticipationTask, self).__init__('anticipation', fn_tokenizer)
 
 class SemEval18SurpriseTask(SemEval18SingleEmotionTask):
     NAME = 'SemEval18Surprise'
-    def __init__(self, fn_tokenizer=None):
+    def __init__(self, fn_tokenizer=bert_tokenizer):
         super(SemEval18SurpriseTask, self).__init__('surprise', fn_tokenizer)
 
 class SemEval18TrustTask(SemEval18SingleEmotionTask):
     NAME = 'SemEval18Trust'
-    def __init__(self, fn_tokenizer=None):
+    def __init__(self, fn_tokenizer=bert_tokenizer):
         super(SemEval18TrustTask, self).__init__('trust', fn_tokenizer)
 
 
@@ -173,6 +190,7 @@ class OffensevalTask(Task):
             labels = data_df.subtask_a.values
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, max_length=max_length)
+        labels = torch.tensor(labels)
 
         return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
 
