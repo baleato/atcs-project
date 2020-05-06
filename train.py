@@ -118,13 +118,14 @@ def train(tasks, model, args, device):
                 # saving redundant parameters
                 # Save model checkpoints.
                 if iterations % args.save_every == 0:
-                    acc = task.calculate_accuracy(predictions, labels)
+                    acc = task.calculate_accuracy(predictions, labels.to(device))
                     snapshot_prefix = os.path.join(args.save_path, 'snapshot')
                     snapshot_path = (
                             snapshot_prefix +
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
-                    save_model(model, snapshot_path)
+                    # TODO fix saving of the model
+                    # save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
@@ -193,7 +194,8 @@ if __name__ == '__main__':
         tasks = []
         # tasks.append(SemEval18Task(fn_tokenizer=fn_tokenizer))
         tasks.append(SemEval18SurpriseTask())
-        tasks.append(SemEval18TrustTask())
+        tasks.append(OffensevalTask())
+        #tasks.append(SemEval18TrustTask())
         for task in tasks:
             model.add_task_classifier(task.NAME, task.get_classifier().to(device))
     results = train(tasks, model, args, device)

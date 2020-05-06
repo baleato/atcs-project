@@ -193,7 +193,7 @@ def get_args():
     parser.add_argument('--dataset_root', type=str,
                         default=os.path.join(os.getcwd(), '.data'))
     parser.add_argument('--save_path', type=str, default='results')
-    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--freeze_bert', default=False, action='store_true')
     parser.add_argument('--unfreeze_num', type=int, default=2)
     parser.add_argument('--resume_snapshot', type=str, default='')
@@ -201,6 +201,6 @@ def get_args():
     parser.add_argument('--save_every', type=int, default=200)
     parser.add_argument('--log_every', type=int, default=10)
     parser.add_argument('--dp_ratio', type=int, default=0.2)
-    parser.add_argument('--lr', type=float, default=.1)
+    parser.add_argument('--lr', type=float, default=5e-5)
     args = parser.parse_args()
     return args

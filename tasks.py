@@ -198,9 +198,9 @@ class OffensevalTask(Task):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-        return self.criterion(predictions.round(), labels.reshape)
+        return self.criterion(predictions, labels)
 
     def calculate_accuracy(self, predictions, labels):
-        bin_labels = predictions == labels
+        bin_labels = predictions.argmax(dim=1, keepdim=False) == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
