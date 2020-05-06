@@ -121,6 +121,7 @@ def train(tasks, model, args, device):
                             snapshot_prefix +
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
+                    # FIXME: save_model
                     #save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
@@ -167,6 +168,7 @@ def train(tasks, model, args, device):
                         snapshot_prefix +
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
+                # FIXME: save_model
                 #save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):

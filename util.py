@@ -108,7 +108,6 @@ def save_model(model, unfreeze_num, snapshot_path):
     # Delete frozen layers from model_copy instance, save state_dicts
     model_copy.encoder.encoder.layer = model_copy.encoder.encoder.layer[-(unfreeze_num):]
     print('saving BERT instance')
-    print(len(model_copy._modules))
     torch.save({
         'BERT_state_dict': model_copy.encoder.state_dict(),
         'EMO_state_dict' : model_copy.emo_classifier.state_dict(),
