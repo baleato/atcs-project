@@ -14,6 +14,7 @@ fi
 
 
 # Offensive language detection; data/offenseval
+# Maybe consider official source with testdata https://sites.google.com/site/offensevalsharedtask/olid/OLIDv1.0.zip?attredirects=0&d=1
 if [[ ! -f OffensEval.zip ]]; then
   curl -Lo OffensEval.zip 'https://drive.google.com/uc?export=download&id=1-ynErP5o7NeV_ZLH_RfQFrw1siJd15tt'
   unzip OffensEval.zip

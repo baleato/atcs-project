@@ -10,7 +10,7 @@ import torch
 from transformers import BertTokenizer
 
 from util import (
-    get_args, get_pytorch_device, create_iters, get_model, load_model,
+    get_args, get_pytorch_device, get_model, load_model,
     save_model)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
@@ -54,9 +54,8 @@ def train(tasks, model, args, device):
     # Define logging
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
+        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
 
-        # had to change this line slightly so that it works on windows too
-        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now().strftime("%Y%m%d%H%M%S"))))
     header = '      Time                 Task   Epoch  Iteration   Progress  %Epoch       ' + \
         'Loss   Dev/Loss     Accuracy      Dev/Acc'
     log_template = '{:>10} {:>20} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
@@ -70,14 +69,19 @@ def train(tasks, model, args, device):
     # Define optimizers and loss function
     optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
 
+    # TODO maybe find nicer solution for passing(handling) the tokenizer
+    print('Loading Tokenizer..')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+
     best_dev_acc = -1
     iterations, running_loss = 0, 0.0
     for epoch in range(args.max_epochs):
         for task in tasks:
             # Iterate over the data
-            train_iter = task.get_iter('train', batch_size=args.batch_size, shuffle=True)
-            train_iter_len = task.get_num_batches('train', batch_size=args.batch_size)
-            dev_iter_len = task.get_num_batches('dev', batch_size=args.batch_size)
+            train_iter = task.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
+            train_iter_len = len(train_iter)
+            dev_iter = task.get_iter('dev', tokenizer, batch_size=args.batch_size)
+            dev_iter_len = len(dev_iter)
             model.train()
             for batch_idx, batch in enumerate(train_iter):
                 # Reset .grad attributes for weights
@@ -86,19 +90,20 @@ def train(tasks, model, args, device):
                 # Extract the sentence_ids and target vector, send sentences to GPU
                 sentences = batch[0].to(device)
                 labels = batch[1]
+                attention_masks = batch[2].to(device)
 
                 # Feed sentences into BERT instance, compute loss, perform backward
                 # pass, update weights.
-                predictions = model(sentences, task.NAME)
+                predictions = model(sentences, task.NAME, attention_mask=attention_masks)
 
-                loss = task.get_loss(predictions, labels)
+                loss = task.get_loss(predictions, labels.to(device))
                 loss.backward()
                 optimizer.step()
 
                 running_loss += loss.item()
                 iterations += 1
                 if iterations % args.log_every == 0:
-                    acc = task.calculate_accuracy(predictions, labels)
+                    acc = task.calculate_accuracy(predictions, labels.to(device))
                     iter_loss = running_loss / args.log_every
                     writer.add_scalar('{}/Accuracy/train'.format(task.NAME), acc, iterations)
                     writer.add_scalar('{}/Loss/train'.format(task.NAME), iter_loss, iterations)
@@ -115,7 +120,7 @@ def train(tasks, model, args, device):
                 # saving redundant parameters
                 # Save model checkpoints.
                 if iterations % args.save_every == 0:
-                    acc = task.calculate_accuracy(predictions, labels)
+                    acc = task.calculate_accuracy(predictions, labels.to(device))
                     snapshot_prefix = os.path.join(args.save_path, 'snapshot')
                     snapshot_path = (
                             snapshot_prefix +
@@ -134,17 +139,15 @@ def train(tasks, model, args, device):
             # calculate accuracy on validation set
             sum_dev_loss, sum_dev_acc = 0, 0
             with torch.no_grad():
-                dev_iter = task.get_iter('dev',
-                                                       batch_size=args.batch_size)
                 for dev_batch in dev_iter:
                     sentences = dev_batch[0].to(device)
                     labels = dev_batch[1]
                     outputs = model(sentences, task.NAME)
                     # Loss
-                    batch_dev_loss = task.get_loss(outputs, labels)
+                    batch_dev_loss = task.get_loss(outputs, labels.to(device))
                     sum_dev_loss += batch_dev_loss.item()
                     # Accuracy
-                    acc = task.calculate_accuracy(outputs, labels)
+                    acc = task.calculate_accuracy(outputs, labels.to(device))
                     sum_dev_acc += acc
             dev_acc = sum_dev_acc / dev_iter_len
             dev_loss = sum_dev_loss / dev_iter_len
@@ -177,23 +180,6 @@ def train(tasks, model, args, device):
 
     writer.close()
 
-print('Loading Tokenizer..')
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-
-# TODO: move tokenizer to tasks and always assume BERT for simplicity
-def fn_tokenizer(sentences):
-    input_ids = []
-    for sentence in sentences:
-        sentence_ids = tokenizer.encode(
-            sentence,
-            add_special_tokens=True,
-            max_length=32,
-            pad_to_max_length=True
-        )
-        input_ids.append(torch.tensor(sentence_ids))
-    # Convert input_ids and labels to tensors;
-    return torch.stack(input_ids, dim=0)
-
 
 if __name__ == '__main__':
     args = get_args()
@@ -210,10 +196,11 @@ if __name__ == '__main__':
         model.to(device)
         print("Tasks")
         tasks = []
-        # tasks.append(SemEval18Task(fn_tokenizer=fn_tokenizer))
-        tasks.append(SemEval18SurpriseTask(fn_tokenizer=fn_tokenizer))
-        tasks.append(SemEval18TrustTask(fn_tokenizer=fn_tokenizer))
-        tasks.append(SarcasmDetection(fn_tokenizer=fn_tokenizer))
+        # tasks.append(SemEval18Task())
+        tasks.append(SemEval18SurpriseTask())
+        tasks.append(SemEval18TrustTask())
+        tasks.append(SarcasmDetection())
+        tasks.append(OffensevalTask())
         for task in tasks:
-            model.add_task_classifier(task.NAME, task.get_classifier())
+            model.add_task_classifier(task.NAME, task.get_classifier().to(device))
     results = train(tasks, model, args, device)
