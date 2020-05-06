@@ -89,7 +89,7 @@ def train(tasks, model, args, device):
                 # pass, update weights.
                 predictions = model(sentences, task.NAME, attention_mask=attention_masks)
 
-                loss = task.get_loss(predictions, labels)
+                loss = task.get_loss(predictions, labels.to(device))
                 loss.backward()
                 optimizer.step()
 
@@ -138,10 +138,10 @@ def train(tasks, model, args, device):
                     labels = dev_batch[1]
                     outputs = model(sentences, task.NAME)
                     # Loss
-                    batch_dev_loss = task.get_loss(outputs, labels)
+                    batch_dev_loss = task.get_loss(outputs, labels.to(device))
                     sum_dev_loss += batch_dev_loss.item()
                     # Accuracy
-                    acc = task.calculate_accuracy(outputs, labels)
+                    acc = task.calculate_accuracy(outputs, labels.to(device))
                     sum_dev_acc += acc
             dev_acc = sum_dev_acc / dev_iter_len
             dev_loss = sum_dev_loss / dev_iter_len
@@ -216,5 +216,5 @@ if __name__ == '__main__':
         tasks.append(SemEval18SurpriseTask(fn_tokenizer=fn_tokenizer))
         tasks.append(SemEval18TrustTask(fn_tokenizer=fn_tokenizer))
         for task in tasks:
-            model.add_task_classifier(task.NAME, task.get_classifier())
+            model.add_task_classifier(task.NAME, task.get_classifier().to(device))
     results = train(tasks, model, args, device)

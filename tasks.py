@@ -82,8 +82,8 @@ class SemEval18Task(Task):
             sentences = df_batch.Tweet.values
             labels = df_batch[self.emotions].values
             if self.fn_tokenizer:
-                sentences = self.fn_tokenizer(list(sentences))
-            yield sentences, torch.tensor(labels)
+                sentences, attention_masks = self.fn_tokenizer(list(sentences))
+            yield sentences, torch.tensor(labels), attention_masks
             ix += batch_size
 
     def get_num_batches(self, split, batch_size=1):
@@ -167,7 +167,7 @@ class OffensevalTask(Task):
         self.fn_tokenizer = fn_tokenizer
         self.splits = {}
         self.classifier = MLPClassifier(target_dim=2)
-        self.criterion = BCEWithLogitsLoss()
+        self.criterion = CrossEntropyLoss()
         for split in ['train', 'test']:
             self.splits.setdefault(
                 split,
