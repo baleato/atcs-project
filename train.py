@@ -10,7 +10,7 @@ import torch
 from transformers import BertTokenizer
 
 from util import (
-    get_args, get_pytorch_device, create_iters, get_model, load_model,
+    get_args, get_pytorch_device, get_model, load_model,
     save_model)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
