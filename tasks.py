@@ -215,6 +215,5 @@ class SarcasmDetection(Task):
         gold_labels = labels
         threshold = 0.5
         pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
-        pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
         accuracy = accuracy_score(gold_labels, pred_labels)
         return accuracy

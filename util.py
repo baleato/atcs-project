@@ -13,6 +13,7 @@ from transformers import BertTokenizer
 from transformers import BertForSequenceClassification, AdamW, BertConfig, \
     BertModel
 
+
 import sys
 
 
@@ -107,6 +108,7 @@ def save_model(model, unfreeze_num, snapshot_path):
     # Delete frozen layers from model_copy instance, save state_dicts
     model_copy.encoder.encoder.layer = model_copy.encoder.encoder.layer[-(unfreeze_num):]
     print('saving BERT instance')
+    print(len(model_copy._modules))
     torch.save({
         'BERT_state_dict': model_copy.encoder.state_dict(),
         'EMO_state_dict' : model_copy.emo_classifier.state_dict(),
@@ -143,7 +145,7 @@ def get_args():
     parser.add_argument('--freeze_bert', default=False, action='store_true')
     parser.add_argument('--unfreeze_num', type=int, default=2)
     parser.add_argument('--resume_snapshot', type=str, default='')
-    parser.add_argument('--max_epochs', type=int, default=50)
+    parser.add_argument('--max_epochs', type=int, default=5 )
     parser.add_argument('--save_every', type=int, default=200)
     parser.add_argument('--log_every', type=int, default=10)
     parser.add_argument('--dp_ratio', type=int, default=0.2)
