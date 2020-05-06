@@ -2,7 +2,8 @@ import math
 import pandas as pd
 import torch
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, NLLLoss
-from sklearn.metrics import jaccard_score, f1_score
+from sklearn.metrics import jaccard_score, f1_score, accuracy_score
+import numpy as np
 
 from models import MLPClassifier
 from util import bert_tokenizer, make_dataloader
@@ -193,14 +194,75 @@ class OffensevalTask(Task):
         labels = torch.tensor(labels)
 
         return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
-
+      
     def get_classifier(self):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-        return self.criterion(predictions, labels)
+      return self.criterion(predictions, labels)
 
     def calculate_accuracy(self, predictions, labels):
         bin_labels = predictions.argmax(dim=1, keepdim=False) == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
+
+
+class SarcasmDetection(Task):
+    NAME = 'SarcasmDetection'
+
+    def __init__(self, fn_tokenizer=None):
+        self.splits = {}
+        self.classifier = MLPClassifier(target_dim=1)
+        self.criterion = BCEWithLogitsLoss()
+        self.fn_tokenizer = fn_tokenizer
+        for split in ['train', 'dev', 'test']:
+            self.splits.setdefault(
+                split,
+                pd.read_json('data/twitter/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8'))
+
+    def get_iter(self, split, batch_size=16, shuffle=False, random_state=1):
+        """
+        Returns an iterable over the single
+        Args:
+            split: train/dev/test
+        Returns:
+            Iterable for the specified split
+        """
+        assert split in ['train', 'dev', 'test']
+        df = self.splits.get(split)
+        df = df.sample(frac=1).reset_index(drop=True)
+        ix = 0
+        while ix < len(df):
+            df_batch = df.iloc[ix:ix+batch_size].copy(deep=True)
+
+            df_batch['context'] = [l[:2] for l in df_batch['context']]
+            df_batch['contextstr'] = ['; '.join(map(str, l)) for l in df_batch['context']]
+            df_batch['sentence'] = df_batch['response'] + df_batch['contextstr']
+
+            sentences = df_batch.sentence.values
+            labels = np.where(df_batch.label.values == 'SARCASM', 1, 0)
+
+
+            if self.fn_tokenizer:
+                sentences = self.fn_tokenizer(list(sentences))
+            yield sentences, torch.tensor(labels).unsqueeze(1)
+            ix += batch_size
+
+    def get_num_batches(self, split, batch_size=1):
+        assert split in ['train', 'dev', 'test']
+        return math.ceil(len(self.splits.get(split))/batch_size)
+
+    def get_classifier(self):
+        return self.classifier
+
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions, labels.type_as(predictions))
+
+    def calculate_accuracy(self, predictions, labels):
+        gold_labels = labels
+        threshold = 0.5
+        pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
+        pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
+        accuracy = accuracy_score(gold_labels, pred_labels)
+        return accuracy
+  

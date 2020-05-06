@@ -4,3 +4,6 @@ __pycache__
 data
 ^data/download.sh
 results
+.idea/
+.ipynb_checkpoints/
+*.docx

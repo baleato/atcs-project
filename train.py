@@ -55,12 +55,14 @@ def train(tasks, model, args, device):
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
         os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
+
     header = '      Time                 Task   Epoch  Iteration   Progress  %Epoch       ' + \
         'Loss   Dev/Loss     Accuracy      Dev/Acc'
     log_template = '{:>10} {:>20} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
         '{:10.6f}              {:10.6f}'
     dev_log_template = '{:>10} {:>20} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}%' + \
         '            {:10.6f}              {:12.6f}'
+
     print(header)
     start = time.time()
 
@@ -124,8 +126,9 @@ def train(tasks, model, args, device):
                             snapshot_prefix +
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
+
                     # TODO fix saving of the model
-                    # save_model(model, args.unfreeze_num, snapshot_path)
+                    save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
@@ -170,13 +173,14 @@ def train(tasks, model, args, device):
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
                 # TODO fix model saving
-                #save_model(model, args.unfreeze_num, snapshot_path)
+                save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
                         os.remove(f)
 
     writer.close()
+
 
 if __name__ == '__main__':
     args = get_args()
@@ -186,16 +190,20 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = load_model(args.resume_snapshot, device)
+        model = MetaLearner(args)
+        model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
         model = MetaLearner(args)
         model.to(device)
         print("Tasks")
         tasks = []
-        # tasks.append(SemEval18Task(fn_tokenizer=fn_tokenizer))
+        # tasks.append(SemEval18Task())
+
         tasks.append(SemEval18SurpriseTask())
+        tasks.append(SemEval18TrustTask())
+        tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
-        #tasks.append(SemEval18TrustTask())
+
         for task in tasks:
             model.add_task_classifier(task.NAME, task.get_classifier().to(device))
     results = train(tasks, model, args, device)
