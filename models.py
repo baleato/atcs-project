@@ -10,18 +10,9 @@ class MetaLearner(nn.Module):
         super(MetaLearner, self).__init__()
         self.encoder = BertModel.from_pretrained("bert-base-uncased")
         self.encoder.requires_grad_(False)
-        # TODO: unfreeze top n layers
         for block in self.encoder.encoder.layer[-(config.unfreeze_num):]:
             for params in block.parameters():
                 params.requires_grad = True
-
-
-
-        # top_n_bert_layers = deque(
-        #    self.encoder.parameters(),
-        #    maxlen=config.n_layers_bert_trained)
-        # for params in top_n_bert_layers:
-        #   params.requires_grad = True
 
     def forward(self, inputs, task_name=None, attention_mask=None):
         task_module_name = 'task_{}'.format(task_name)

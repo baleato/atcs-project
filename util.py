@@ -2,6 +2,8 @@ import os
 from argparse import ArgumentParser
 import pandas as pd
 import torch
+import numpy as np
+
 from copy import deepcopy
 
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
@@ -10,6 +12,7 @@ from torch.utils.data import TensorDataset
 from transformers import BertTokenizer
 from transformers import BertForSequenceClassification, AdamW, BertConfig, \
     BertModel
+
 
 import sys
 
@@ -52,6 +55,7 @@ def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=T
                             batch_size=batch_size
                             )
     return dataloader
+
 
 def get_model():
     """
@@ -119,7 +123,7 @@ def get_args():
     parser.add_argument('--freeze_bert', default=False, action='store_true')
     parser.add_argument('--unfreeze_num', type=int, default=2)
     parser.add_argument('--resume_snapshot', type=str, default='')
-    parser.add_argument('--max_epochs', type=int, default=50)
+    parser.add_argument('--max_epochs', type=int, default=5 )
     parser.add_argument('--save_every', type=int, default=200)
     parser.add_argument('--log_every', type=int, default=10)
     parser.add_argument('--dp_ratio', type=int, default=0.2)

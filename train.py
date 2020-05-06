@@ -126,9 +126,8 @@ def train(tasks, model, args, device):
                             snapshot_prefix +
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
-
-                    # TODO fix saving of the model
-                    save_model(model, args.unfreeze_num, snapshot_path)
+                    # FIXME: save_model
+                    #save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
@@ -172,8 +171,8 @@ def train(tasks, model, args, device):
                         snapshot_prefix +
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
-                # TODO fix model saving
-                save_model(model, args.unfreeze_num, snapshot_path)
+                # FIXME: save_model
+                #save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -198,12 +197,10 @@ if __name__ == '__main__':
         print("Tasks")
         tasks = []
         # tasks.append(SemEval18Task())
-
         tasks.append(SemEval18SurpriseTask())
         tasks.append(SemEval18TrustTask())
         tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
-
         for task in tasks:
             model.add_task_classifier(task.NAME, task.get_classifier().to(device))
     results = train(tasks, model, args, device)

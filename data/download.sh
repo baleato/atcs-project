@@ -7,10 +7,11 @@ if [[ ! -f SemEval18.zip ]]; then
 fi
 
 # Sarcasm detection; data/twitter
-if [[ ! -f twitter_training.zip ]]; then
-  curl -Lo twitter_training.zip 'https://github.com/EducationalTestingService/sarcasm/releases/download/v1.0/twitter_training.zip'
-  unzip twitter_training.zip
+if [[ ! -f sarcasm_twitter.zip ]]; then
+  curl -Lo sarcasm_twitter.zip 'https://drive.google.com/uc?export=download&id=1eDJrerQdcMY2nGNOkMOi0vsAke2h_jEB'
+  unzip sarcasm_twitter.zip
 fi
+
 
 # Offensive language detection; data/offenseval
 # Maybe consider official source with testdata https://sites.google.com/site/offensevalsharedtask/olid/OLIDv1.0.zip?attredirects=0&d=1

@@ -218,7 +218,7 @@ class SarcasmDetection(Task):
         for split in ['train', 'dev', 'test']:
             self.splits.setdefault(
                 split,
-                pd.read_json('data/twitter/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8'))
+                pd.read_json('data/atcs_sarcasm_data/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8'))
 
     def get_iter(self, split, batch_size=16, shuffle=False, random_state=1):
         """
@@ -261,7 +261,6 @@ class SarcasmDetection(Task):
     def calculate_accuracy(self, predictions, labels):
         gold_labels = labels
         threshold = 0.5
-        pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
         pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
         accuracy = accuracy_score(gold_labels, pred_labels)
         return accuracy
