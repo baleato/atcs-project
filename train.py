@@ -73,8 +73,9 @@ def train(tasks, model, args, device):
         for task in tasks:
             # Iterate over the data
             train_iter = task.get_iter('train', batch_size=args.batch_size, shuffle=True)
-            train_iter_len = task.get_num_batches('train', batch_size=args.batch_size)
-            dev_iter_len = task.get_num_batches('dev', batch_size=args.batch_size)
+            train_iter_len = len(train_iter)
+            dev_iter = task.get_iter('dev', batch_size=args.batch_size)
+            dev_iter_len = len(dev_iter)
             model.train()
             for batch_idx, batch in enumerate(train_iter):
                 # Reset .grad attributes for weights
@@ -131,8 +132,6 @@ def train(tasks, model, args, device):
             # calculate accuracy on validation set
             sum_dev_loss, sum_dev_acc = 0, 0
             with torch.no_grad():
-                dev_iter = task.get_iter('dev',
-                                                       batch_size=args.batch_size)
                 for dev_batch in dev_iter:
                     sentences = dev_batch[0].to(device)
                     labels = dev_batch[1]
@@ -173,31 +172,6 @@ def train(tasks, model, args, device):
 
     writer.close()
 
-print('Loading Tokenizer..')
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-
-# TODO: move tokenizer to tasks and always assume BERT for symplicity
-def fn_tokenizer(sentences, max_length=32):
-    input_ids = []
-    attention_masks = []
-    for sentence in sentences:
-        encoded_dict = tokenizer.encode_plus(
-            sentence,
-            add_special_tokens=True,
-            max_length=max_length,
-            pad_to_max_length=True,
-            return_attention_mask=True,
-            return_tensors='pt'  # returns results already as pytorch tensors
-        )
-        input_ids.append(encoded_dict['input_ids'])
-        attention_masks.append(encoded_dict['attention_mask'])
-
-    # Stack the input_ids, labels and attention_masks
-    input_ids = torch.cat(input_ids, dim=0)
-    attention_masks = torch.cat(attention_masks, dim=0)
-    return input_ids, attention_masks
-
-
 if __name__ == '__main__':
     args = get_args()
     for key, value in vars(args).items():
@@ -213,8 +187,8 @@ if __name__ == '__main__':
         print("Tasks")
         tasks = []
         # tasks.append(SemEval18Task(fn_tokenizer=fn_tokenizer))
-        tasks.append(SemEval18SurpriseTask(fn_tokenizer=fn_tokenizer))
-        tasks.append(SemEval18TrustTask(fn_tokenizer=fn_tokenizer))
+        tasks.append(SemEval18SurpriseTask())
+        tasks.append(SemEval18TrustTask())
         for task in tasks:
             model.add_task_classifier(task.NAME, task.get_classifier().to(device))
     results = train(tasks, model, args, device)

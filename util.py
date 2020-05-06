@@ -92,6 +92,45 @@ def create_iters(path, order, batch_size, path2=''):
     return dataloader
 
 
+def bert_tokenizer(sentences, max_length=32):
+    print('Loading Tokenizer..')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+    input_ids = []
+    attention_masks = []
+    for sentence in sentences:
+        encoded_dict = tokenizer.encode_plus(
+            sentence,
+            add_special_tokens=True,
+            max_length=max_length,
+            pad_to_max_length=True,
+            return_attention_mask=True,
+            return_tensors='pt'  # returns results already as pytorch tensors
+        )
+        input_ids.append(encoded_dict['input_ids'])
+        attention_masks.append(encoded_dict['attention_mask'])
+
+    # Stack the input_ids, labels and attention_masks
+    input_ids = torch.cat(input_ids, dim=0)
+    attention_masks = torch.cat(attention_masks, dim=0)
+    return input_ids, attention_masks
+
+
+def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True):
+    # Load tensors into torch Dataset object
+    dataset = TensorDataset(input_ids, labels, attention_masks)
+    # Determine what sampling mode should be used
+    if shuffle:
+        sampler = RandomSampler(dataset)
+    else:
+        sampler = SequentialSampler(dataset)
+
+    # Create DataLoader object
+    dataloader = DataLoader(dataset,
+                            sampler=sampler,
+                            batch_size=batch_size
+                            )
+    return dataloader
+
 def get_model():
     """
     this function loads a pre-trained bert-base-uncased model instance with a

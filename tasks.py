@@ -3,10 +3,9 @@ import pandas as pd
 import torch
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, NLLLoss
 from sklearn.metrics import jaccard_score, f1_score
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
-from torch.utils.data import TensorDataset
+
 from models import MLPClassifier
-from util import create_iters
+from util import bert_tokenizer, make_dataloader
 
 # TODO
 class TaskSampler(object):
@@ -49,24 +48,16 @@ class SemEval18Task(Task):
     Multi-labeled tweet data classified in 11 emotions: anger, anticipation,
     disgust, fear, joy, love, optimism, pessimism, sadness, surprise and trust.
     """
-    def __init__(self, fn_tokenizer=None):
+    def __init__(self, fn_tokenizer=bert_tokenizer):
         self.emotions = [
             'anger', 'anticipation', 'disgust', 'fear', 'joy',
             'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
         ]
         self.fn_tokenizer = fn_tokenizer
-        self.splits = {}
         self.classifier = MLPClassifier(target_dim=len(self.emotions))
         self.criterion = BCEWithLogitsLoss()
-        for split in ['train', 'dev', 'test']:
-            self.splits.setdefault(
-                split,
-                pd.read_table('data/semeval18_task1_class/{}.txt'.format(split)))
 
-        # TODO:
-        # - pre-process dataset
-
-    def get_iter(self, split, batch_size=16, shuffle=False, random_state=1):
+    def get_iter(self, split, batch_size=16, shuffle=False, random_state=1, max_length=32):
         """
         Returns an iterable over the single
         Args:
@@ -75,20 +66,14 @@ class SemEval18Task(Task):
             Iterable for the specified split
         """
         assert split in ['train', 'dev', 'test']
-        df = self.splits.get(split)
-        ix = 0
-        while ix < len(df):
-            df_batch = df.iloc[ix:ix+batch_size]
-            sentences = df_batch.Tweet.values
-            labels = df_batch[self.emotions].values
-            if self.fn_tokenizer:
-                sentences, attention_masks = self.fn_tokenizer(list(sentences))
-            yield sentences, torch.tensor(labels), attention_masks
-            ix += batch_size
+        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
+        data_df = pd.read_csv('./data/semeval18_task1_class/{}.txt'.format(split), sep='\t')
+        sentences = data_df.Tweet.values
+        labels = data_df[self.emotions].values
 
-    def get_num_batches(self, split, batch_size=1):
-        assert split in ['train', 'dev', 'test']
-        return math.ceil(len(self.splits.get(split))/batch_size)
+        input_ids, attention_masks = self.fn_tokenizer(sentences, max_length=max_length)
+
+        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
@@ -162,29 +147,24 @@ class SemEval18TrustTask(SemEval18SingleEmotionTask):
 
 class OffensevalTask(Task):
     NAME = 'Offenseval'
-    def __init__(self, fn_tokenizer=None):
+    def __init__(self, fn_tokenizer=bert_tokenizer):
 
         self.fn_tokenizer = fn_tokenizer
-        self.splits = {}
         self.classifier = MLPClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
-        for split in ['train', 'test']:
-            self.splits.setdefault(
-                split,
-                pd.read_table('data/semeval18_task1_class/{}.txt'.format(split)))
 
     # TODO: allow for
     # train_iter = task.get_iter('train')
     # len(train_iter) -> returns the number of batches
-    def get_iter(self, split, batch_size=16, shuffle=True, random_state=1, max_length=64):
+    def get_iter(self, split, batch_size=16, shuffle=False, random_state=1, max_length=64):
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
         if split == 'test':
             data_df = pd.read_csv('data/offenseval/testset-levela.csv', sep='\t')
             sentences = data_df.tweet.values
             data_df_labels = pd.read_csv('data/offenseval/labels-levela.csv', sep=',', header=None)
-            data_df[1].replace(to_replace='OFF', value=1, inplace=True)
-            data_df[1].replace(to_replace='NOT', value=0, inplace=True)
-            labels = data_df[1].values
+            data_df_labels[1].replace(to_replace='OFF', value=1, inplace=True)
+            data_df_labels[1].replace(to_replace='NOT', value=0, inplace=True)
+            labels = data_df_labels[1].values
         else:
             data_df = pd.read_csv('data/offenseval/offenseval-training-v1.tsv', sep='\t')
             sentences = data_df.tweet.values
@@ -194,26 +174,7 @@ class OffensevalTask(Task):
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, max_length=max_length)
 
-        # Load tensors into torch Dataset object
-        dataset = TensorDataset(input_ids, labels, attention_masks)
-        # Determine what sampling mode should be used
-        if shuffle:
-            sampler = RandomSampler(dataset)
-        else:
-            sampler = SequentialSampler(dataset)
-
-        # Create DataLoader object
-        dataloader = DataLoader(dataset,
-                                sampler=sampler,
-                                batch_size=batch_size
-                                )
-        return dataloader
-
-    def get_num_batches(self, split, batch_size=1):
-        if split == 'test':
-            return round(860/batch_size + 0.5)
-        else:
-            return round(13241/batch_size + 0.5)
+        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
