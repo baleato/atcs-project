@@ -121,7 +121,8 @@ def train(tasks, model, args, device):
                             snapshot_prefix +
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
-                    save_model(model, args.unfreeze_num, snapshot_path)
+                    # FIXME: save_model
+                    #save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
@@ -167,7 +168,8 @@ def train(tasks, model, args, device):
                         snapshot_prefix +
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
-                save_model(model, args.unfreeze_num, snapshot_path)
+                # FIXME: save_model
+                #save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -209,8 +211,8 @@ if __name__ == '__main__':
         print("Tasks")
         tasks = []
         # tasks.append(SemEval18Task(fn_tokenizer=fn_tokenizer))
-        #tasks.append(SemEval18SurpriseTask(fn_tokenizer=fn_tokenizer))
-        #tasks.append(SemEval18TrustTask(fn_tokenizer=fn_tokenizer))
+        tasks.append(SemEval18SurpriseTask(fn_tokenizer=fn_tokenizer))
+        tasks.append(SemEval18TrustTask(fn_tokenizer=fn_tokenizer))
         tasks.append(SarcasmDetection(fn_tokenizer=fn_tokenizer))
         for task in tasks:
             model.add_task_classifier(task.NAME, task.get_classifier())

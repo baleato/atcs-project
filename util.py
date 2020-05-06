@@ -2,6 +2,8 @@ import os
 from argparse import ArgumentParser
 import pandas as pd
 import torch
+import numpy as np
+
 from copy import deepcopy
 
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
@@ -10,6 +12,7 @@ from torch.utils.data import TensorDataset
 from transformers import BertTokenizer
 from transformers import BertForSequenceClassification, AdamW, BertConfig, \
     BertModel
+
 
 import sys
 
@@ -27,13 +30,26 @@ def create_iters(path, order, batch_size):
     :param batch_size:
     :return:
     """
-    # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
-    data_df = pd.read_csv(path, sep='\t')
-    sentences = data_df.Tweet.values
-    labels = data_df[[
-        'anger', 'anticipation', 'disgust', 'fear', 'joy',
-        'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
-    ]].values
+    if 'semeval' in path:
+        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
+        data_df = pd.read_csv(path, sep='\t')
+        sentences = data_df.Tweet.values
+        labels = data_df[[
+            'anger', 'anticipation', 'disgust', 'fear', 'joy',
+            'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
+        ]].values
+    elif 'sarcasm' in path:
+        data_df = pd.read_json(path, lines=True)
+        data_df['context'] = [l[:2] for l in data_df['context']]
+        data_df['contextstr'] = ['; '.join(map(str, l)) for l in data_df['context']]
+        data_df['sentence'] = data_df['response'] + data_df['contextstr']
+        msk = np.random.rand(len(data_df)) < 0.8
+        train = data_df[msk]
+        test = data_df[~msk]
+        test.to_json('./data/twitter/sarcasm_twitter_testing.json', orient='records', lines=True)
+        sentences = train.sentence.values
+        labels = np.where(train.label.values == 'SARCASM', 1, 0)
+
 
     # add BERT-required formatting; tokenize with desired BertTokenizer
     # Load Tokenizer
@@ -45,14 +61,14 @@ def create_iters(path, order, batch_size):
         sentence_ids = tokenizer.encode(
             sentence,
             add_special_tokens=True,
-            max_length=32,
+            max_length=64,
             pad_to_max_length=True
         )
         input_ids.append(torch.tensor(sentence_ids))
 
     # Convert input_ids and labels to tensors;
     input_ids = torch.stack(input_ids, dim=0)
-    labels = torch.tensor(labels)
+    labels = torch.tensor(labels).unsqueeze(1)
 
     # Load tensors into torch Dataset object
     dataset = TensorDataset(input_ids, labels)
@@ -68,14 +84,6 @@ def create_iters(path, order, batch_size):
                             batch_size=batch_size
                             )
     return dataloader
-
-# # Here is some code for testing
-# test_iter = create_iters(path='./data/sem_eval_2018/test.txt',
-#                          order='sequential',
-#                          batch_size=64)
-# for batch in test_iter:
-#     print(len(batch[0]))
-#     sys.exit()
 
 
 def get_model():
@@ -136,10 +144,11 @@ def get_args():
     parser.add_argument('--freeze_bert', default=False, action='store_true')
     parser.add_argument('--unfreeze_num', type=int, default=2)
     parser.add_argument('--resume_snapshot', type=str, default='')
-    parser.add_argument('--max_epochs', type=int, default=50)
+    parser.add_argument('--max_epochs', type=int, default=5 )
     parser.add_argument('--save_every', type=int, default=200)
     parser.add_argument('--log_every', type=int, default=10)
     parser.add_argument('--dp_ratio', type=int, default=0.2)
     parser.add_argument('--lr', type=float, default=.1)
+    parser.add_argument('--num_classes', type=int, default=11)
     args = parser.parse_args()
     return args
