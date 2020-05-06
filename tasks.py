@@ -171,7 +171,7 @@ class SarcasmDetection(Task):
         for split in ['train', 'dev', 'test']:
             self.splits.setdefault(
                 split,
-                pd.read_json('data/twitter/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8'))
+                pd.read_json('data/atcs_sarcasm_data/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8'))
 
     def get_iter(self, split, batch_size=16, shuffle=False, random_state=1):
         """
