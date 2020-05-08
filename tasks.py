@@ -261,6 +261,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         self.classifier = MLPClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
 
+
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
         """
         Returns an iterable over the single
@@ -288,9 +289,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         return self.criterion(predictions, labels.reshape(-1))
 
     def calculate_accuracy(self, predictions, labels):
-        # TODO: investigate why labels is sometimes of shape [batch_size, 1] and others just [batch_size]
-        # print(predictions.shape, labels.shape)
-        gold_labels = torch.flatten(labels)
+        gold_labels = labels[:, 0]
         n_correct = (torch.max(predictions, 1)[1].view(gold_labels.size()) == gold_labels).sum().item()
         n_total = len(gold_labels)
         return 100. * n_correct/n_total
@@ -307,6 +306,9 @@ class OffensevalTask(Task):
         self.classifier = MLPClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
 
+    # TODO: allow for
+    # train_iter = task.get_iter('train')
+    # len(train_iter) -> returns the number of batches
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
         if split == 'test':
@@ -316,7 +318,6 @@ class OffensevalTask(Task):
             data_df_labels[1].replace(to_replace='OFF', value=1, inplace=True)
             data_df_labels[1].replace(to_replace='NOT', value=0, inplace=True)
             labels = data_df_labels[1].values
-        # TODO Make Dev set
         else:
             data_df = pd.read_csv('data/offenseval/offenseval-training-v1.tsv', sep='\t')
             sentences = data_df.tweet.values
@@ -333,7 +334,7 @@ class OffensevalTask(Task):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-        return self.criterion(predictions, labels)
+      return self.criterion(predictions, labels)
 
     def calculate_accuracy(self, predictions, labels):
         bin_labels = predictions.argmax(dim=1, keepdim=False) == labels
@@ -344,12 +345,17 @@ class OffensevalTask(Task):
 class SarcasmDetection(Task):
     NAME = 'SarcasmDetection'
 
-    def __init__(self, fn_tokenizer=bert_tokenizer):
+    def __init__(self, fn_tokenizer=None):
+        self.splits = {}
         self.classifier = MLPClassifier(target_dim=1)
         self.criterion = BCEWithLogitsLoss()
         self.fn_tokenizer = fn_tokenizer
+        for split in ['train', 'dev', 'test']:
+            self.splits.setdefault(
+                split,
+                pd.read_json('data/atcs_sarcasm_data/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8'))
 
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
+    def get_iter(self, split, batch_size=16, shuffle=False, random_state=1):
         """
         Returns an iterable over the single
         Args:
@@ -358,26 +364,34 @@ class SarcasmDetection(Task):
             Iterable for the specified split
         """
         assert split in ['train', 'dev', 'test']
-        df = pd.read_json('data/atcs_sarcasm_data/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8')
+        df = self.splits.get(split)
         df = df.sample(frac=1).reset_index(drop=True)
+        ix = 0
+        while ix < len(df):
+            df_batch = df.iloc[ix:ix+batch_size].copy(deep=True)
 
-        df['context'] = [l[:2] for l in df['context']]
-        df['contextstr'] = ['; '.join(map(str, l)) for l in df['context']]
-        df['sentence'] = df['response'] + df['contextstr']
+            df_batch['context'] = [l[:2] for l in df_batch['context']]
+            df_batch['contextstr'] = ['; '.join(map(str, l)) for l in df_batch['context']]
+            df_batch['sentence'] = df_batch['response'] + df_batch['contextstr']
 
-        sentences = df.sentence.values
-        labels = np.where(df.label.values == 'SARCASM', 1, 0)
+            sentences = df_batch.sentence.values
+            labels = np.where(df_batch.label.values == 'SARCASM', 1, 0)
 
-        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
-        labels = torch.tensor(labels).unsqueeze(1)
 
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+            if self.fn_tokenizer:
+                sentences = self.fn_tokenizer(list(sentences))
+            yield sentences, torch.tensor(labels).unsqueeze(1)
+            ix += batch_size
+
+    def get_num_batches(self, split, batch_size=1):
+        assert split in ['train', 'dev', 'test']
+        return math.ceil(len(self.splits.get(split))/batch_size)
 
     def get_classifier(self):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-        return self.criterion(predictions, labels.type_as(predictions).reshape_as(predictions))
+        return self.criterion(predictions, labels.type_as(predictions))
 
     def calculate_accuracy(self, predictions, labels):
         pred_labels = torch.sigmoid(predictions).round()

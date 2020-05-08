@@ -54,13 +54,13 @@ def train(tasks, model, args, device):
     # Define logging
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
-        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
+        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
 
-    header = '      Time                      Task   Epoch  Iteration   Progress  %Epoch       ' + \
+    header = '      Time                 Task   Epoch  Iteration   Progress  %Epoch       ' + \
         'Loss   Dev/Loss     Accuracy      Dev/Acc'
-    log_template = '{:>10} {:>25} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
+    log_template = '{:>10} {:>20} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
         '{:10.6f}              {:10.6f}'
-    dev_log_template = '{:>10} {:>25} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}%' + \
+    dev_log_template = '{:>10} {:>20} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}%' + \
         '            {:10.6f}              {:12.6f}'
 
     print(header)
@@ -80,6 +80,8 @@ def train(tasks, model, args, device):
             # Iterate over the data
             train_iter = task.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
             train_iter_len = len(train_iter)
+            dev_iter = task.get_iter('dev', tokenizer, batch_size=args.batch_size)
+            dev_iter_len = len(dev_iter)
             model.train()
             for batch_idx, batch in enumerate(train_iter):
                 # Reset .grad attributes for weights
@@ -92,7 +94,7 @@ def train(tasks, model, args, device):
 
                 # Feed sentences into BERT instance, compute loss, perform backward
                 # pass, update weights.
-                predictions = model(sentences, task.get_name(), attention_mask=attention_masks)
+                predictions = model(sentences, task.NAME, attention_mask=attention_masks)
 
                 loss = task.get_loss(predictions, labels.to(device))
                 loss.backward()
@@ -103,11 +105,11 @@ def train(tasks, model, args, device):
                 if iterations % args.log_every == 0:
                     acc = task.calculate_accuracy(predictions, labels.to(device))
                     iter_loss = running_loss / args.log_every
-                    writer.add_scalar('{}/Accuracy/train'.format(task.get_name()), acc, iterations)
-                    writer.add_scalar('{}/Loss/train'.format(task.get_name()), iter_loss, iterations)
+                    writer.add_scalar('{}/Accuracy/train'.format(task.NAME), acc, iterations)
+                    writer.add_scalar('{}/Loss/train'.format(task.NAME), iter_loss, iterations)
                     print(log_template.format(
                         str(timedelta(seconds=int(time.time() - start))),
-                        task.get_name(),
+                        task.NAME,
                         epoch,
                         iterations,
                         batch_idx+1, train_iter_len,
@@ -125,15 +127,13 @@ def train(tasks, model, args, device):
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
                     # FIXME: save_model
-                    # save_model(model, args.unfreeze_num, snapshot_path)
+                    #save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
                             os.remove(f)
 
             # ============================ EVALUATION ============================
-            dev_iter = task.get_iter('dev', tokenizer, batch_size=args.batch_size)
-            dev_iter_len = len(dev_iter)
             model.eval()
 
             # calculate accuracy on validation set
@@ -155,15 +155,15 @@ def train(tasks, model, args, device):
 
             print(dev_log_template.format(
                     str(timedelta(seconds=int(time.time() - start))),
-                    task.get_name(),
+                    task.NAME,
                     epoch,
                     iterations,
                     batch_idx+1, train_iter_len,
                     (batch_idx+1) / train_iter_len * 100,
                     dev_loss, dev_acc))
 
-            writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
-            writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
+            writer.add_scalar('{}/Accuracy/dev'.format(task.NAME), dev_acc, iterations)
+            writer.add_scalar('{}/Loss/dev'.format(task.NAME), dev_loss, iterations)
 
             if best_dev_acc < dev_acc:
                 best_dev_acc = dev_acc
@@ -173,7 +173,7 @@ def train(tasks, model, args, device):
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
                 # FIXME: save_model
-                # save_model(model, args.unfreeze_num, snapshot_path)
+                #save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
