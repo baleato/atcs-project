@@ -203,6 +203,6 @@ if __name__ == '__main__':
         # tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
         for task in tasks:
-            model.add_task_classifier(task.get_name(), task.get_classifier())
+            model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
         sampler = TaskSampler(tasks)
     results = train([sampler], model, args, device)
