@@ -35,54 +35,60 @@ class Task(object):
 
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
-    def __init__(self, task_iters):
+    def __init__(self, task_iters, method='sequential', custom_task_ratio=None):
+        self.original_dataloaders = task_iters
         self.task_iters = [iter(ti) for ti in task_iters]
-        self._len_tasks_called = sum([len(task_iter) for task_iter in task_iters])
-        self.task_indexes = list(range(len(task_iters)))
-        task_num_examples = [len(task_iter) for task_iter in task_iters]
-        total_num_examples = sum(task_num_examples)
+        self.method = method
+        if custom_task_ratio is None:
+            task_ratio = custom_task_ratio
+        else:
+            task_ratio = [math.sqrt(len(task_iter)) for task_iter in task_iters]
+        self.task_probs = task_ratio / sum(task_ratio)
+        self.num_total_batches = sum([len(task_iter) for task_iter in task_iters])
         self.task_index = 0
-        batch = []
-        self.task_indexes_index = 0
         self.batch_idx = 0
 
     def get_task_index(self):
         return self.task_index
 
+    def sample_next_task(self):
+        if self.method == 'sequential':
+            return (self.task_index + 1) % len(self.task_iters) if self.batch_idx != 0 else 0
+        else:
+            return np.random.choice(len(self.task_iters), p=self.task_probs)
+
     def __iter__(self):
         return self
 
     def __next__(self):
-        while self.task_iters:
-            task_iter = self.task_iters[self.task_indexes_index]
-            task_index = self.task_indexes[self.task_indexes_index]
+        if self.task_iters:
+            # TODO implement
+            task_index = self.sample_next_task()
+            task_iter = self.task_iters[task_index]
             try:
                 batch = next(task_iter)
             except StopIteration:
                 # Note that depending on how next it's implemented it could also
                 # return an empty list instead of raising StopIteration
-                batch = []
-            if not batch:
-                self.task_iters.remove(task_iter)
-                self.task_indexes.remove(task_index)
-                if self.task_indexes:
-                    self.task_indexes_index = self.task_indexes_index % len(self.task_indexes)
-            else:
-                self.task_index = task_index
-                self.task_indexes_index = (self.task_indexes_index + 1) % len(self.task_indexes)
-                self.batch_idx += 1
-                if self.batch_idx > self._len_tasks_called:
-                    logging.warning(
-                        (
-                            'Number of batches exceeds the expected amount. ' +
-                            'Expected: {}; current batch idx: {}'
-                        ).format(self._len_tasks_called, selfbatch_idx))
-                return batch
 
-        raise StopIteration
+                # if iterator is empty initialize new iterator from original dataloader
+                task_iter = iter(self.original_dataloaders[task_index])
+                batch = next(task_iter)
+
+            self.task_index = task_index
+            self.batch_idx += 1
+            if self.batch_idx > self.num_total_batches:
+                logging.warning(
+                    (
+                        'Number of batches exceeds the expected amount. ' +
+                        'Expected: {}; current batch idx: {}'
+                    ).format(self.num_total_batches, self.batch_idx))
+            return batch
+        else:
+            raise StopIteration
 
     def __len__(self):
-        return self._len_tasks_called
+        return self.num_total_batches
 
 
 class TaskSampler(Task):
@@ -100,9 +106,9 @@ class TaskSampler(Task):
     # TODO:
     # Improvements on task sampler:
     #   - [ ] Mix different task examples within a batch
-    #   - [ ] Allow to specify sampling factors per task. For instance: [1, 2, 0.5, 0.5]
+    #   - [X] Allow to specify sampling factors per task. For instance: [1, 2, 0.5, 0.5]
     #     will sample task 1 (25%), task 2 (50%) and task 3 and 4 (12.5%) each.
-    #   - [ ] Mind imbalance data (-> sample freq. sqrt of dataset length)
+    #   - [X] Mind imbalance data (-> sample freq. sqrt of dataset length)
     def __init__(self, tasks):
         assert len(tasks) > 0
         self.tasks = tasks
@@ -270,6 +276,7 @@ class OffensevalTask(Task):
             data_df_labels[1].replace(to_replace='OFF', value=1, inplace=True)
             data_df_labels[1].replace(to_replace='NOT', value=0, inplace=True)
             labels = data_df_labels[1].values
+        # TODO Make Dev set
         else:
             data_df = pd.read_csv('data/offenseval/offenseval-training-v1.tsv', sep='\t')
             sentences = data_df.tweet.values
