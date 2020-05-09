@@ -43,7 +43,7 @@ class TaskSamplerIter(object):
             task_ratio = [math.sqrt(len(task_iter)) for task_iter in task_iters]
         else:
             task_ratio = custom_task_ratio
-        self.task_probs = task_ratio / sum(task_ratio)
+        self.task_probs = [tr/sum(task_ratio) for tr in task_ratio]
         self.num_total_batches = sum([len(task_iter) for task_iter in task_iters])
         self.task_index = 0
         self.batch_idx = 0
