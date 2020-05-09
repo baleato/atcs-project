@@ -35,7 +35,7 @@ class Task(object):
 
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
-    def __init__(self, task_iters, method='sequential', custom_task_ratio=None):
+    def __init__(self, task_iters, method, custom_task_ratio=None):
         self.original_dataloaders = task_iters
         self.task_iters = [iter(ti) for ti in task_iters]
         self.method = method
@@ -108,13 +108,15 @@ class TaskSampler(Task):
     #   - [X] Allow to specify sampling factors per task. For instance: [1, 2, 0.5, 0.5]
     #     will sample task 1 (25%), task 2 (50%) and task 3 and 4 (12.5%) each.
     #   - [X] Mind imbalance data (-> sample freq. sqrt of dataset length)
-    def __init__(self, tasks):
+    def __init__(self, tasks, method='sequential', custom_task_ratio=None):
         assert len(tasks) > 0
         self.tasks = tasks
+        self.method = method
+        self.custom_task_ratio = custom_task_ratio
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
         task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state, max_length) for task in self.tasks]
-        self._task_sampler_iter = TaskSamplerIter(task_iters)
+        self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
         return self._task_sampler_iter
 
     def _get_current_tasks(self):
