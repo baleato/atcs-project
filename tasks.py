@@ -210,17 +210,12 @@ class OffensevalTask(Task):
 class SarcasmDetection(Task):
     NAME = 'SarcasmDetection'
 
-    def __init__(self, fn_tokenizer=None):
-        self.splits = {}
+    def __init__(self, fn_tokenizer=bert_tokenizer):
         self.classifier = MLPClassifier(target_dim=1)
         self.criterion = BCEWithLogitsLoss()
         self.fn_tokenizer = fn_tokenizer
-        for split in ['train', 'dev', 'test']:
-            self.splits.setdefault(
-                split,
-                pd.read_json('data/atcs_sarcasm_data/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8'))
 
-    def get_iter(self, split, batch_size=16, shuffle=False, random_state=1):
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         """
         Returns an iterable over the single
         Args:
@@ -229,28 +224,20 @@ class SarcasmDetection(Task):
             Iterable for the specified split
         """
         assert split in ['train', 'dev', 'test']
-        df = self.splits.get(split)
+        df = pd.read_json('data/atcs_sarcasm_data/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8')
         df = df.sample(frac=1).reset_index(drop=True)
-        ix = 0
-        while ix < len(df):
-            df_batch = df.iloc[ix:ix+batch_size].copy(deep=True)
 
-            df_batch['context'] = [l[:2] for l in df_batch['context']]
-            df_batch['contextstr'] = ['; '.join(map(str, l)) for l in df_batch['context']]
-            df_batch['sentence'] = df_batch['response'] + df_batch['contextstr']
+        df['context'] = [l[:2] for l in df['context']]
+        df['contextstr'] = ['; '.join(map(str, l)) for l in df['context']]
+        df['sentence'] = df['response'] + df['contextstr']
 
-            sentences = df_batch.sentence.values
-            labels = np.where(df_batch.label.values == 'SARCASM', 1, 0)
+        sentences = df.sentence.values
+        labels = np.where(df.label.values == 'SARCASM', 1, 0)
 
+        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
+        labels = torch.tensor(labels).unsqueeze(1)
 
-            if self.fn_tokenizer:
-                sentences = self.fn_tokenizer(list(sentences))
-            yield sentences, torch.tensor(labels).unsqueeze(1)
-            ix += batch_size
-
-    def get_num_batches(self, split, batch_size=1):
-        assert split in ['train', 'dev', 'test']
-        return math.ceil(len(self.splits.get(split))/batch_size)
+        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
@@ -259,9 +246,7 @@ class SarcasmDetection(Task):
         return self.criterion(predictions, labels.type_as(predictions))
 
     def calculate_accuracy(self, predictions, labels):
-        gold_labels = labels
-        threshold = 0.5
-        pred_labels = (predictions.clone().detach() > threshold).type_as(gold_labels)
-        accuracy = accuracy_score(gold_labels, pred_labels)
-        return accuracy
-  
+        pred_labels = torch.sigmoid(predictions).round()
+        bin_labels = pred_labels == labels
+        correct = bin_labels.sum().float().item()
+        return correct / len(labels)
