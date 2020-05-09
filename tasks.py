@@ -40,9 +40,9 @@ class TaskSamplerIter(object):
         self.task_iters = [iter(ti) for ti in task_iters]
         self.method = method
         if custom_task_ratio is None:
-            task_ratio = custom_task_ratio
-        else:
             task_ratio = [math.sqrt(len(task_iter)) for task_iter in task_iters]
+        else:
+            task_ratio = custom_task_ratio
         self.task_probs = task_ratio / sum(task_ratio)
         self.num_total_batches = sum([len(task_iter) for task_iter in task_iters])
         self.task_index = 0
@@ -62,7 +62,6 @@ class TaskSamplerIter(object):
 
     def __next__(self):
         if self.task_iters:
-            # TODO implement
             task_index = self.sample_next_task()
             task_iter = self.task_iters[task_index]
             try:
