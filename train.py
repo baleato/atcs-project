@@ -56,11 +56,11 @@ def train(tasks, model, args, device):
     writer = SummaryWriter(
         os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
 
-    header = '      Time                 Task   Epoch  Iteration   Progress  %Epoch       ' + \
+    header = '      Time                      Task   Epoch  Iteration   Progress  %Epoch       ' + \
         'Loss   Dev/Loss     Accuracy      Dev/Acc'
-    log_template = '{:>10} {:>20} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
+    log_template = '{:>10} {:>25} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
         '{:10.6f}              {:10.6f}'
-    dev_log_template = '{:>10} {:>20} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}%' + \
+    dev_log_template = '{:>10} {:>25} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}%' + \
         '            {:10.6f}              {:12.6f}'
 
     print(header)
@@ -197,9 +197,8 @@ if __name__ == '__main__':
         model.to(device)
         print("Tasks")
         tasks = []
-        # tasks.append(SemEval18Task())
-        tasks.append(SemEval18SurpriseTask())
-        tasks.append(SemEval18TrustTask())
+        for emotion in SemEval18SingleEmotionTask.EMOTIONS:
+            tasks.append(SemEval18SingleEmotionTask(emotion))
         tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
         for task in tasks:
