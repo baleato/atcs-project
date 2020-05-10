@@ -200,9 +200,9 @@ if __name__ == '__main__':
         # tasks.append(SemEval18Task())
         tasks.append(SemEval18SurpriseTask())
         tasks.append(SemEval18TrustTask())
-        # tasks.append(SarcasmDetection())
+        tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
         for task in tasks:
-            model.add_task_classifier(task.get_name(), task.get_classifier())
-        sampler = TaskSampler(tasks)
+            model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
+        sampler = TaskSampler(tasks, method='random')
     results = train([sampler], model, args, device)

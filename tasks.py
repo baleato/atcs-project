@@ -35,54 +35,110 @@ class Task(object):
 
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
-    def __init__(self, task_iters):
+    def __init__(self, task_iters, method, custom_task_ratio=None):
+        self.original_dataloaders = task_iters
         self.task_iters = [iter(ti) for ti in task_iters]
-        self._len_tasks_called = sum([len(task_iter) for task_iter in task_iters])
-        self.task_indexes = list(range(len(task_iters)))
-        task_num_examples = [len(task_iter) for task_iter in task_iters]
-        total_num_examples = sum(task_num_examples)
+        self.method = method
+        if custom_task_ratio is None:
+            task_ratio = [math.sqrt(len(task_iter)) for task_iter in task_iters]
+        else:
+            task_ratio = custom_task_ratio
+        self.task_probs = [tr/sum(task_ratio) for tr in task_ratio]
+        self.num_total_batches = sum([len(task_iter) for task_iter in task_iters])
         self.task_index = 0
-        batch = []
-        self.task_indexes_index = 0
         self.batch_idx = 0
 
     def get_task_index(self):
         return self.task_index
 
+    def sample_next_task(self):
+        if self.method == 'sequential':
+            return (self.task_index + 1) % len(self.task_iters) if self.batch_idx != 0 else 0
+        else:
+            return np.random.choice(len(self.task_iters), p=self.task_probs)
+
     def __iter__(self):
         return self
 
     def __next__(self):
-        while self.task_iters:
-            task_iter = self.task_iters[self.task_indexes_index]
-            task_index = self.task_indexes[self.task_indexes_index]
+        if self.task_iters:
+            task_index = self.sample_next_task()
+            task_iter = self.task_iters[task_index]
             try:
                 batch = next(task_iter)
             except StopIteration:
                 # Note that depending on how next it's implemented it could also
                 # return an empty list instead of raising StopIteration
-                batch = []
-            if not batch:
-                self.task_iters.remove(task_iter)
-                self.task_indexes.remove(task_index)
-                if self.task_indexes:
-                    self.task_indexes_index = self.task_indexes_index % len(self.task_indexes)
-            else:
-                self.task_index = task_index
-                self.task_indexes_index = (self.task_indexes_index + 1) % len(self.task_indexes)
-                self.batch_idx += 1
-                if self.batch_idx > self._len_tasks_called:
-                    logging.warning(
-                        (
-                            'Number of batches exceeds the expected amount. ' +
-                            'Expected: {}; current batch idx: {}'
-                        ).format(self._len_tasks_called, selfbatch_idx))
-                return batch
 
-        raise StopIteration
+                # if iterator is empty initialize new iterator from original dataloader
+                task_iter = iter(self.original_dataloaders[task_index])
+                batch = next(task_iter)
+
+            self.task_index = task_index
+            self.batch_idx += 1
+            if self.batch_idx > self.num_total_batches:
+                logging.warning(
+                    (
+                        'Number of batches exceeds the expected amount. ' +
+                        'Expected: {}; current batch idx: {}'
+                    ).format(self.num_total_batches, self.batch_idx))
+            return batch
+        else:
+            raise StopIteration
 
     def __len__(self):
-        return self._len_tasks_called
+        return self.num_total_batches
+
+class MixedTaskSamplerIter(TaskSamplerIter):
+    """Iterator class used by TaskSampler.
+    Batch consists of multiple tasks.
+    Returns batch (list) of length 4 with
+    batch[0]: token ids, batch[1]: labels, batch[2]: attention_masks, batch[4]: task ids
+    """
+    def __init__(self, task_iters, batch_size, method, custom_task_ratio=None):
+        super(MixedTaskSamplerIter, self).__init__(task_iters, method, custom_task_ratio)
+        self.num_total_batches = int(np.ceil(self.num_total_batches/batch_size))
+        self.batch_size = batch_size
+
+    def __next__(self):
+        if self.task_iters:
+            task_selection = []
+            for b in range(self.batch_size):
+                self.task_index = self.sample_next_task()
+                task_iter = self.task_iters[self.task_index]
+                try:
+                    task_sample = next(task_iter)
+                    # ensure consistent label size
+                    task_sample[1] = task_sample[1].view(1)
+                    task_sample.append(torch.tensor(self.task_index).view(1))
+                except StopIteration:
+                    # Note that depending on how next it's implemented it could also
+                    # return an empty list instead of raising StopIteration
+
+                    # if iterator is empty initialize new iterator from original dataloader
+                    task_iter = iter(self.original_dataloaders[self.task_index])
+                    task_sample = next(task_iter)
+                    task_sample[1] = task_sample[1].view(1)
+                    task_sample.append(torch.tensor(self.task_index).view(1))
+                task_selection.append(task_sample)
+            batch = []
+            for i in range(len(task_sample)):
+                bla = [row[i] for row in task_selection]
+                field = torch.cat([row[i].long() for row in task_selection])
+                batch.append(field)
+            self.batch_idx += 1
+            if self.batch_idx > self.num_total_batches:
+                logging.warning(
+                    (
+                        'Number of batches exceeds the expected amount. ' +
+                        'Expected: {}; current batch idx: {}'
+                    ).format(self.num_total_batches, self.batch_idx))
+            return batch
+        else:
+            raise StopIteration
+
+    def __len__(self):
+        return self.num_total_batches
 
 
 class TaskSampler(Task):
@@ -97,19 +153,25 @@ class TaskSampler(Task):
         for batch in train_iter:
             ...
     """
-    # TODO:
     # Improvements on task sampler:
-    #   - [ ] Mix different task examples within a batch
-    #   - [ ] Allow to specify sampling factors per task. For instance: [1, 2, 0.5, 0.5]
+    #   - [X] Mix different task examples within a batch
+    #   - [X] Allow to specify sampling factors per task. For instance: [1, 2, 0.5, 0.5]
     #     will sample task 1 (25%), task 2 (50%) and task 3 and 4 (12.5%) each.
-    #   - [ ] Mind imbalance data (-> sample freq. sqrt of dataset length)
-    def __init__(self, tasks):
+    #   - [X] Mind imbalance data (-> sample freq. sqrt of dataset length)
+    def __init__(self, tasks, method='sequential', custom_task_ratio=None, mixed_batch=False):
         assert len(tasks) > 0
         self.tasks = tasks
+        self.method = method
+        self.custom_task_ratio = custom_task_ratio
+        self.mixed_batch = mixed_batch
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
-        task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state, max_length) for task in self.tasks]
-        self._task_sampler_iter = TaskSamplerIter(task_iters)
+        if self.mixed_batch:
+            task_iters = [task.get_iter(split, tokenizer, 1, shuffle, random_state, max_length) for task in self.tasks]
+            self._task_sampler_iter = MixedTaskSamplerIter(task_iters, batch_size, self.method, self.custom_task_ratio)
+        else:
+            task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state) for task in self.tasks]
+            self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
         return self._task_sampler_iter
 
     def _get_current_tasks(self):
@@ -270,6 +332,7 @@ class OffensevalTask(Task):
             data_df_labels[1].replace(to_replace='OFF', value=1, inplace=True)
             data_df_labels[1].replace(to_replace='NOT', value=0, inplace=True)
             labels = data_df_labels[1].values
+        # TODO Make Dev set
         else:
             data_df = pd.read_csv('data/offenseval/offenseval-training-v1.tsv', sep='\t')
             sentences = data_df.tweet.values
@@ -330,7 +393,7 @@ class SarcasmDetection(Task):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-        return self.criterion(predictions, labels.type_as(predictions))
+        return self.criterion(predictions, labels.type_as(predictions).reshape_as(predictions))
 
     def calculate_accuracy(self, predictions, labels):
         pred_labels = torch.sigmoid(predictions).round()
