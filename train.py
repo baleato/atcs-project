@@ -54,7 +54,7 @@ def train(tasks, model, args, device):
     # Define logging
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
-        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
+        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
 
     header = '      Time                      Task   Epoch  Iteration   Progress  %Epoch       ' + \
         'Loss   Dev/Loss     Accuracy      Dev/Acc'
@@ -125,7 +125,7 @@ def train(tasks, model, args, device):
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
                     # FIXME: save_model
-                    #save_model(model, args.unfreeze_num, snapshot_path)
+                    # save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
@@ -173,7 +173,7 @@ def train(tasks, model, args, device):
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
                 # FIXME: save_model
-                #save_model(model, args.unfreeze_num, snapshot_path)
+                # save_model(model, args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:

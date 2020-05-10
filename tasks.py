@@ -89,6 +89,7 @@ class TaskSamplerIter(object):
     def __len__(self):
         return self.num_total_batches
 
+
 class MixedTaskSamplerIter(TaskSamplerIter):
     """Iterator class used by TaskSampler.
     Batch consists of multiple tasks.
@@ -332,7 +333,7 @@ class OffensevalTask(Task):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-      return self.criterion(predictions, labels)
+        return self.criterion(predictions, labels)
 
     def calculate_accuracy(self, predictions, labels):
         bin_labels = predictions.argmax(dim=1, keepdim=False) == labels
