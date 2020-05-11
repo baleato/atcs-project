@@ -37,15 +37,42 @@ def bert_tokenizer(sentences, tokenizer, max_length=32):
     attention_masks = torch.cat(attention_masks, dim=0)
     return input_ids, attention_masks
 
+class EpisodicSampler(torch.utils.data.Sampler):
+    """Expects TensorDataset with labels as second argument"""
+    def __init__(self, data_source):
+        self.data_source = data_source
 
-def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True):
+    def get_label_indicies(self):
+        index_dict = {}
+        label_distribution = {}
+        labels = self.data_source.tensors[1].squeeze().numpy()
+        unique_labels = np.unique(labels)
+        for i in unique_labels:
+            bin_labels = np.nonzero(labels == i)
+            index_dict[i] = bin_labels
+            label_distribution[i] = bin_labels.sum()
+        return index_dict, label_distribution
+    # TODO finish rest of sampler functionality (below is equivalent to RandomSampler)
+    def __iter__(self):
+        n = len(self.data_source)
+        if self.replacement:
+            return iter(torch.randint(high=n, size=(self.num_samples,), dtype=torch.int64).tolist())
+        return iter(torch.randperm(n).tolist())
+
+    def __len__(self):
+        return self.num_samples
+
+def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True):
     """ expects input_ids, labels, attention_masks to be tensors"""
 
     # Load tensors into torch Dataset object
     dataset = TensorDataset(input_ids, labels, attention_masks)
     # Determine what sampling mode should be used
     if shuffle:
-        sampler = RandomSampler(dataset)
+        if episodic:
+            sampler = EpisodicSampler(dataset)
+        else:
+            sampler = RandomSampler(dataset)
     else:
         sampler = SequentialSampler(dataset)
 
