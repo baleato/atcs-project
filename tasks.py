@@ -288,6 +288,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         gold_labels = torch.flatten(labels)
         n_correct = (torch.max(predictions, 1)[1].view(gold_labels.size()) == gold_labels).sum().item()
         n_total = len(gold_labels)
+        # TODO agree on consistent format of accuracy (in percent or decimal)
         return 100. * n_correct/n_total
 
     def get_name(self):
