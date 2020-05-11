@@ -28,7 +28,6 @@ class MetaLearner(nn.Module):
         self.add_module('task_{}'.format(task_name), classifier)
 
 
-
 class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
@@ -56,7 +55,6 @@ class MLPClassifier(nn.Module):
                 layers.pop()
 
         self.network = nn.Sequential(*layers)
-
 
     def forward(self, input):
         output = self.network(input)

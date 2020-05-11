@@ -89,6 +89,7 @@ class TaskSamplerIter(object):
     def __len__(self):
         return self.num_total_batches
 
+
 class MixedTaskSamplerIter(TaskSamplerIter):
     """Iterator class used by TaskSampler.
     Batch consists of multiple tasks.
@@ -249,7 +250,11 @@ class SemEval18SingleEmotionTask(SemEval18Task):
     sampling of the remaining entries, creating a balanced dataset for this
     single emotion.
     """
+    EMOTIONS = ['anger', 'anticipation', 'disgust', 'fear', 'joy', 'love',
+                'optimism', 'pessimism', 'sadness', 'surprise', 'trust']
+
     def __init__(self, emotion, fn_tokenizer=bert_tokenizer):
+        assert emotion in self.EMOTIONS
         self.emotion = emotion
         self.emotions = [self.emotion]
         self.fn_tokenizer = fn_tokenizer
@@ -294,27 +299,6 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         return 'SemEval18_{}'.format(self.emotion)
 
 
-class SemEval18AngerTask(SemEval18SingleEmotionTask):
-    NAME = 'SemEval18Anger'
-    def __init__(self, fn_tokenizer=bert_tokenizer):
-        super(SemEval18AngerTask, self).__init__('anger', fn_tokenizer)
-
-class SemEval18AnticipationTask(SemEval18SingleEmotionTask):
-    NAME = 'SemEval18Anticipation'
-    def __init__(self, fn_tokenizer=bert_tokenizer):
-        super(SemEval18AnticipationTask, self).__init__('anticipation', fn_tokenizer)
-
-class SemEval18SurpriseTask(SemEval18SingleEmotionTask):
-    NAME = 'SemEval18Surprise'
-    def __init__(self, fn_tokenizer=bert_tokenizer):
-        super(SemEval18SurpriseTask, self).__init__('surprise', fn_tokenizer)
-
-class SemEval18TrustTask(SemEval18SingleEmotionTask):
-    NAME = 'SemEval18Trust'
-    def __init__(self, fn_tokenizer=bert_tokenizer):
-        super(SemEval18TrustTask, self).__init__('trust', fn_tokenizer)
-
-
 class OffensevalTask(Task):
     NAME = 'Offenseval'
     def __init__(self, fn_tokenizer=bert_tokenizer):
@@ -349,7 +333,7 @@ class OffensevalTask(Task):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-      return self.criterion(predictions, labels)
+        return self.criterion(predictions, labels)
 
     def calculate_accuracy(self, predictions, labels):
         bin_labels = predictions.argmax(dim=1, keepdim=False) == labels
@@ -400,4 +384,3 @@ class SarcasmDetection(Task):
         bin_labels = pred_labels == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
-
