@@ -3,6 +3,7 @@ from collections import deque
 import torch.nn as nn
 from transformers import BertModel
 from util import parse_nonlinearity
+import torch
 
 
 class MetaLearner(nn.Module):
@@ -19,7 +20,9 @@ class MetaLearner(nn.Module):
         cls_token_enc = encoded[:, 0, :]
         if task_name:
             task_module_name = 'task_{}'.format(task_name)
-            assert task_module_name in self._modules
+            assert task_module_name in self._modules or 'task_prototype' in self._modules
+            if 'task_prototype' in self._modules:
+                task_module_name = 'task_prototype'
             classifier = self._modules[task_module_name]
             return classifier(cls_token_enc)
         else:
@@ -61,3 +64,33 @@ class MLPClassifier(nn.Module):
     def forward(self, input):
         output = self.network(input)
         return output
+
+
+class PrototypeLearner(nn.Module):
+    def __init__(self, config, tasks):
+        super(PrototypeLearner, self).__init__()
+        self.encoder = BertModel.from_pretrained("bert-base-uncased")
+        self.encoder.requires_grad_(False)
+        for block in self.encoder.encoder.layer[-(config.unfreeze_num):]:
+            for params in block.parameters():
+                params.requires_grad = True
+        bert_out = 768
+        embedding_dim = 500
+        self.classifier_layer = nn.Sequential(
+            nn.Linear(bert_out, embedding_dim),
+            nn.ReLU()
+        )
+        #self.prototypes = {}
+        #for task in tasks:
+        #    self.prototypes[task.NAME] = {1: torch.randn((embedding_dim), dtype=torch.double),
+        #                             0: torch.randn((embedding_dim), dtype=torch.double)}
+
+
+    def forward(self, inputs, attention_mask=None):
+        encoded = self.encoder(inputs, attention_mask=attention_mask)[0]
+        cls_token_enc = encoded[:, 0, :]
+        out = self.classifier_layer(cls_token_enc)
+
+        return out
+
+

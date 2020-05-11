@@ -32,6 +32,8 @@ class Task(object):
     def get_name(self):
         return self.NAME
 
+    def get_num_classes(self):
+        return self.num_classes
 
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
@@ -260,6 +262,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         self.fn_tokenizer = fn_tokenizer
         self.classifier = MLPClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
+        self.num_classes = 2
 
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
@@ -295,7 +298,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         return 100. * n_correct/n_total
 
     def get_name(self):
-        return 'SemEval18_{}'.format(self.emotion)
+        return 'SemEval18{}'.format(self.emotion)
 
 
 class OffensevalTask(Task):
@@ -305,6 +308,7 @@ class OffensevalTask(Task):
         self.fn_tokenizer = fn_tokenizer
         self.classifier = MLPClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
+        self.num_classes = 2
 
     # TODO: allow for
     # train_iter = task.get_iter('train')
@@ -350,6 +354,7 @@ class SarcasmDetection(Task):
         self.classifier = MLPClassifier(target_dim=1)
         self.criterion = BCEWithLogitsLoss()
         self.fn_tokenizer = fn_tokenizer
+        self.num_classes = 2
         for split in ['train', 'dev', 'test']:
             self.splits.setdefault(
                 split,
