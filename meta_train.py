@@ -83,11 +83,15 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
         task_models = []
         # inner loop (sample different tasks)
         for task_sample in range(meta_batch_size):
-            task_model = model.clone()
+            # clone original model
+            task_model = type(model)()
+            task_model.load_state_dict(model.state_dict())
+            # new optimizer for every new task model
             task_optimizer = AdamW(params=task_model.parameters(), lr=args.lr, correct_bias=False)
+
             batch = next(train_iter)
 
-            # save task speciffic models for meta update
+            # save task specific model for meta update
             task_models.append({'model': task_model, 'task': train_iter.get_task_index()})
 
             for update in range(num_updates):
@@ -101,7 +105,7 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
                 task_loss = sampler.get_loss(predictions, query[1].to(device))
                 task_loss.backward()
                 task_optimizer.step()
-
+        # meta update
         meta_losses = []
         for task_sample in task_models:
             # get a new sample of the same task for meta training
@@ -111,14 +115,8 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
             support, query = split_episode(batch, ratio=0.5)
             # prototypes = model.compute_prototypes(support)
             # model.initiallize_classifier(prototypes)
-
-            sentences = query[0].to(device)
-            labels = query[1]
-            attention_masks = query[2].to(device)
-
-            predictions = model(sentences, task.get_name(), attention_mask=attention_masks)
-
-            meta_losses.append(task.get_loss(predictions, labels.to(device)))
+            predictions = model(query[0].to(device), task.get_name(), attention_mask=query[2])
+            meta_losses.append(task.get_loss(predictions, query[1].to(device)))
         meta_loss = sum(meta_losses)
         meta_loss.backward()
         optimizer.step()
@@ -153,50 +151,50 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
                 if f != snapshot_path:
                     os.remove(f)
 
-        # ============================ EVALUATION ============================
-        dev_iter = sampler.get_iter('dev', tokenizer, batch_size=args.batch_size)
-        dev_iter_len = len(dev_iter)
-        model.eval()
-
-        # calculate accuracy on validation set
-        sum_dev_loss, sum_dev_acc = 0, 0
-        with torch.no_grad():
-            for dev_batch in dev_iter:
-                sentences = dev_batch[0].to(device)
-                labels = dev_batch[1]
-                attention_masks = dev_batch[2].to(device)
-                outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
-                # Loss
-                batch_dev_loss = task.get_loss(outputs, labels.to(device))
-                sum_dev_loss += batch_dev_loss.item()
-                # Accuracy
-                acc = task.calculate_accuracy(outputs, labels.to(device))
-                sum_dev_acc += acc
-        dev_acc = sum_dev_acc / dev_iter_len
-        dev_loss = sum_dev_loss / dev_iter_len
-
-        print(dev_log_template.format(
-            str(timedelta(seconds=int(time.time() - start))),
-            task.get_name(),
-            iterations,
-            dev_loss, dev_acc))
-
-        writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
-        writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
-
-        if best_dev_acc < dev_acc:
-            best_dev_acc = dev_acc
-            snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
-            snapshot_path = (
-                    snapshot_prefix +
-                    '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-            ).format(dev_acc, dev_loss, iterations)
-            # FIXME: save_model
-            # save_model(model, args.unfreeze_num, snapshot_path)
-            # Keep only the best snapshot
-            for f in glob.glob(snapshot_prefix + '*'):
-                if f != snapshot_path:
-                    os.remove(f)
+        # # ============================ EVALUATION ============================
+        # dev_iter = sampler.get_iter('dev', tokenizer, batch_size=args.batch_size)
+        # dev_iter_len = len(dev_iter)
+        # model.eval()
+        #
+        # # calculate accuracy on validation set
+        # sum_dev_loss, sum_dev_acc = 0, 0
+        # with torch.no_grad():
+        #     for dev_batch in dev_iter:
+        #         sentences = dev_batch[0].to(device)
+        #         labels = dev_batch[1]
+        #         attention_masks = dev_batch[2].to(device)
+        #         outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
+        #         # Loss
+        #         batch_dev_loss = task.get_loss(outputs, labels.to(device))
+        #         sum_dev_loss += batch_dev_loss.item()
+        #         # Accuracy
+        #         acc = task.calculate_accuracy(outputs, labels.to(device))
+        #         sum_dev_acc += acc
+        # dev_acc = sum_dev_acc / dev_iter_len
+        # dev_loss = sum_dev_loss / dev_iter_len
+        #
+        # print(dev_log_template.format(
+        #     str(timedelta(seconds=int(time.time() - start))),
+        #     task.get_name(),
+        #     iterations,
+        #     dev_loss, dev_acc))
+        #
+        # writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
+        # writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
+        #
+        # if best_dev_acc < dev_acc:
+        #     best_dev_acc = dev_acc
+        #     snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
+        #     snapshot_path = (
+        #             snapshot_prefix +
+        #             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
+        #     ).format(dev_acc, dev_loss, iterations)
+        #     # FIXME: save_model
+        #     # save_model(model, args.unfreeze_num, snapshot_path)
+        #     # Keep only the best snapshot
+        #     for f in glob.glob(snapshot_prefix + '*'):
+        #         if f != snapshot_path:
+        #             os.remove(f)
 
     writer.close()
 
