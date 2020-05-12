@@ -58,7 +58,6 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
 
     header = '      Time      Task      Iteration      Loss   Dev/Loss     Accuracy      Dev/Acc'
     log_template = '{:>10} {:>20} {:10.0f} {:10.6f}              {:10.6f}'
-    dev_log_template = '{:>10} {:>20} {:10.0f} {:10.6f}              {:12.6f}'
 
     print(header)
     start = time.time()
@@ -78,53 +77,60 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
     # Iterate over the data
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     model.train()
-    # outer loop
+    # outer loop (meta-iterations)
     for i in range(meta_iters):
-        task_models = []
+        grads = []
         # inner loop (sample different tasks)
         for task_sample in range(meta_batch_size):
             # clone original model
             task_model = type(model)()
             task_model.load_state_dict(model.state_dict())
+
             # new optimizer for every new task model
             task_optimizer = AdamW(params=task_model.parameters(), lr=args.lr, correct_bias=False)
 
+            # prepare support and query set
             batch = next(train_iter)
+            support, query = split_episode(batch)
 
-            # save task specific model for meta update
-            task_models.append({'model': task_model, 'task': train_iter.get_task_index()})
+            # setup output layer (via prototype network)
+            # TODO ensure functionality
+            prototypes = compute_prototypes(task_model, sampler.get_name(), support)
+            initiallize_classifier(task_model, prototypes)
 
+            # train some iterations on support set
             for update in range(num_updates):
-                support, query = split_episode(batch)
-                # TODO ensure functionality
-                prototypes = compute_prototypes(model, sampler.get_name(), support)
-                initiallize_classifier(model, prototypes)
                 task_optimizer.zero_grad()
-                predictions = task_model(query[0].to(device), sampler.get_name(), attention_mask=query[2].to(device))
-
-                task_loss = sampler.get_loss(predictions, query[1].to(device))
+                predictions = task_model(support[0].to(device), sampler.get_name(), attention_mask=support[2].to(device))
+                task_loss = sampler.get_loss(predictions, support[1].to(device))
                 task_loss.backward()
                 task_optimizer.step()
-        # meta update
-        meta_losses = []
-        for task_sample in task_models:
-            # get a new sample of the same task for meta training
-            batch = train_iter.get_task_batch(task_sample['task'])
-            task = sampler.get_task(task_sample['task'])
 
-            support, query = split_episode(batch, ratio=0.5)
-            prototypes = compute_prototypes(model, sampler.get_name(), support)
-            initiallize_classifier(model, prototypes)
-            predictions = model(query[0].to(device), task.get_name(), attention_mask=query[2])
-            meta_losses.append(task.get_loss(predictions, query[1].to(device)))
-        meta_loss = sum(meta_losses)
-        meta_loss.backward()
+            # calculate gradients for meta update on the query set
+            predictions = task_model(query[0].to(device), sampler.get_name(), attention_mask=query[2].to(device))
+            query_loss = sampler.get_loss(predictions, query[1].to(device))
+            query_loss.backward()
+
+            # save gradients after first task sample
+            if task_sample == 0:
+                for param in task_model.parameters():
+                    grads.append(param.grad)
+            # add the gradients of all task samples
+            else:
+                for p, param in enumerate(task_model.parameters()):
+                    grads[p] += param.grad
+
+        # perform meta update
+        # first load the calculated gradients in the meta-model
+        for p, param in enumerate(model.parameters()):
+            param.grad = grads[p]
+        # update model parameters according to the gradients from inner loop
         optimizer.step()
 
-        running_loss += meta_loss.item()
+        running_loss += query_loss.item()
         iterations += 1
         if iterations % args.log_every == 0:
-            acc = task.calculate_accuracy(predictions, labels.to(device))
+            acc = task.calculate_accuracy(predictions, query[1].to(device))
             iter_loss = running_loss / args.log_every
             writer.add_scalar('{}/Accuracy/train'.format(task.get_name()), acc, iterations)
             writer.add_scalar('{}/Loss/train'.format(task.get_name()), iter_loss, iterations)
@@ -138,12 +144,12 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
         # saving redundant parameters
         # Save model checkpoints.
         if iterations % args.save_every == 0:
-            acc = task.calculate_accuracy(predictions, labels.to(device))
+            acc = task.calculate_accuracy(predictions, query[1].to(device))
             snapshot_prefix = os.path.join(args.save_path, 'snapshot')
             snapshot_path = (
                     snapshot_prefix +
                     '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-            ).format(acc, loss.item(), iterations)
+            ).format(acc, query_loss.item(), iterations)
             # FIXME: save_model
             # save_model(model, args.unfreeze_num, snapshot_path)
             # Keep only the last snapshot
