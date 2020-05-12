@@ -126,6 +126,9 @@ def train(tasks, model, args, device):
                 predictions = nn.functional.softmax(-distances, dim=1) # according to equation 2 in the paper
 
                 loss = criterion(-distances, query_labels.squeeze(-1).to(device))
+                if torch.isnan(loss).item():
+                    print(predictions[0])
+                    raise Exception("Got NaNs in loss function. Happens only sometimes... Investigate why!")
                 loss.backward()
                 optimizer.step()
 
