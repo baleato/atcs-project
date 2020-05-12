@@ -119,7 +119,8 @@ def train(tasks, model, args, device):
                 num_classes = task.tasks[train_iter.get_task_index()].num_classes
                 centroids = torch.zeros((num_classes, 500))
                 for label in unique_labels:
-                    centroids[label] = support_embedding[(support_labels == label).squeeze(-1)].mean(dim=0)
+                    if label in support_labels:
+                        centroids[label] = support_embedding[(support_labels == label).squeeze(-1)].mean(dim=0)
 
                 query_embedding = model(query, attention_mask=query_mask)
                 distances = compute_distance(query_embedding, centroids)
