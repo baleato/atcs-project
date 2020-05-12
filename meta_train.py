@@ -11,7 +11,7 @@ from transformers import BertTokenizer, AdamW
 
 from util import (
     get_args, get_pytorch_device, get_model, load_model,
-    save_model, split_episode)
+    save_model, split_episode, compute_prototypes, initiallize_classifier)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import MetaLearner
@@ -97,8 +97,8 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
             for update in range(num_updates):
                 support, query = split_episode(batch)
                 # TODO ensure functionality
-                # prototypes = model.compute_prototypes(support)
-                # model.initiallize_classifier(prototypes)
+                prototypes = compute_prototypes(model, sampler.get_name(), support)
+                initiallize_classifier(model, prototypes)
                 task_optimizer.zero_grad()
                 predictions = task_model(query[0].to(device), sampler.get_name(), attention_mask=query[2].to(device))
 
@@ -113,8 +113,8 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
             task = sampler.get_task(task_sample['task'])
 
             support, query = split_episode(batch, ratio=0.5)
-            # prototypes = model.compute_prototypes(support)
-            # model.initiallize_classifier(prototypes)
+            prototypes = compute_prototypes(model, sampler.get_name(), support)
+            initiallize_classifier(model, prototypes)
             predictions = model(query[0].to(device), task.get_name(), attention_mask=query[2])
             meta_losses.append(task.get_loss(predictions, query[1].to(device)))
         meta_loss = sum(meta_losses)
@@ -150,51 +150,6 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
                     os.remove(f)
-
-        # # ============================ EVALUATION ============================
-        # dev_iter = sampler.get_iter('dev', tokenizer, batch_size=args.batch_size)
-        # dev_iter_len = len(dev_iter)
-        # model.eval()
-        #
-        # # calculate accuracy on validation set
-        # sum_dev_loss, sum_dev_acc = 0, 0
-        # with torch.no_grad():
-        #     for dev_batch in dev_iter:
-        #         sentences = dev_batch[0].to(device)
-        #         labels = dev_batch[1]
-        #         attention_masks = dev_batch[2].to(device)
-        #         outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
-        #         # Loss
-        #         batch_dev_loss = task.get_loss(outputs, labels.to(device))
-        #         sum_dev_loss += batch_dev_loss.item()
-        #         # Accuracy
-        #         acc = task.calculate_accuracy(outputs, labels.to(device))
-        #         sum_dev_acc += acc
-        # dev_acc = sum_dev_acc / dev_iter_len
-        # dev_loss = sum_dev_loss / dev_iter_len
-        #
-        # print(dev_log_template.format(
-        #     str(timedelta(seconds=int(time.time() - start))),
-        #     task.get_name(),
-        #     iterations,
-        #     dev_loss, dev_acc))
-        #
-        # writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
-        # writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
-        #
-        # if best_dev_acc < dev_acc:
-        #     best_dev_acc = dev_acc
-        #     snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
-        #     snapshot_path = (
-        #             snapshot_prefix +
-        #             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-        #     ).format(dev_acc, dev_loss, iterations)
-        #     # FIXME: save_model
-        #     # save_model(model, args.unfreeze_num, snapshot_path)
-        #     # Keep only the best snapshot
-        #     for f in glob.glob(snapshot_prefix + '*'):
-        #         if f != snapshot_path:
-        #             os.remove(f)
 
     writer.close()
 
