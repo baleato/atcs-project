@@ -48,9 +48,9 @@ class EpisodicSampler(torch.utils.data.Sampler):
         labels = self.data_source.tensors[1].squeeze().numpy()
         unique_labels = np.unique(labels)
         for i in unique_labels:
-            bin_labels = np.nonzero(labels == i)
+            bin_labels = np.nonzero(labels == i)[0]
             index_dict[i] = bin_labels
-            label_distribution[i] = bin_labels.sum()
+            label_distribution[i] = bin_labels.size
         return index_dict, label_distribution
 
     def __iter__(self):
@@ -69,7 +69,7 @@ class EpisodicSampler(torch.utils.data.Sampler):
                 expanded_indices = indices
             # pad labels with less examples to exactly match the number of the most common label
             remainder = max_label % label_distribution[label]
-            expanded_indices = np.hstack(expanded_indices, np.random.choice(indices, remainder, replace=False))
+            expanded_indices = np.hstack((expanded_indices, np.random.choice(indices, remainder, replace=False)))
             np.random.shuffle(expanded_indices)
             balanced_labels.append(expanded_indices)
 
