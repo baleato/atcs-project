@@ -114,21 +114,15 @@ def train(tasks, model, args, device):
                 # pass, update weights.
 
                 support_embedding = model(support, attention_mask=support_mask)
-                # compute centroids on support set according to equation 1 in the paper
-                unique_labels = query_labels.unique()
-                num_classes = task.tasks[train_iter.get_task_index()].num_classes
-                centroids = torch.zeros((num_classes, 500))
-                for label in unique_labels:
-                    if label in support_labels:
-                        centroids[label] = support_embedding[(support_labels == label).squeeze(-1)].mean(dim=0)
+                centroids = model.calculate_centroids((support_embedding, support_labels), task.tasks[train_iter.get_task_index()].num_classes)#, query_labels, train_iter, task)
 
                 query_embedding = model(query, attention_mask=query_mask)
                 distances = compute_distance(query_embedding, centroids)
-                predictions = nn.functional.softmax(-distances, dim=1) # according to equation 2 in the paper
+                #predictions = nn.functional.softmax(-distances, dim=1) # according to equation 2 in the paper
 
-                loss = criterion(-distances, query_labels.squeeze(-1).to(device))
+                loss = criterion(-distances, query_labels.squeeze(-1).long().to(device))
                 if torch.isnan(loss).item():
-                    print(predictions[0])
+                    print(centroids[0])
                     raise Exception("Got NaNs in loss function. Happens only sometimes... Investigate why!")
                 loss.backward()
                 optimizer.step()
@@ -136,7 +130,7 @@ def train(tasks, model, args, device):
                 running_loss += loss.item()
                 iterations += 1
                 if iterations % args.log_every == 0:
-                    acc = task.calculate_accuracy(predictions, query_labels.squeeze().to(device))
+                    acc = task.calculate_accuracy(distances, query_labels.to(device))
                     iter_loss = running_loss / args.log_every
                     writer.add_scalar('{}/Accuracy/train'.format(task.get_name()), acc, iterations)
                     writer.add_scalar('{}/Loss/train'.format(task.get_name()), iter_loss, iterations)
@@ -153,7 +147,7 @@ def train(tasks, model, args, device):
                 # saving redundant parameters
                 # Save model checkpoints.
                 if iterations % args.save_every == 0:
-                    acc = task.calculate_accuracy(predictions, query_labels.squeeze().to(device))
+                    acc = task.calculate_accuracy(distances, query_labels.squeeze().to(device))
                     snapshot_prefix = os.path.join(args.save_path, 'snapshot')
                     snapshot_path = (
                             snapshot_prefix +
@@ -227,17 +221,13 @@ if __name__ == '__main__':
         model = MetaLearner(args)
         model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
-
-
         print("Tasks")
         tasks = []
-        #tasks.append(SemEval18Task())
-        tasks.append(SemEval18SurpriseTask())
-        tasks.append(SemEval18TrustTask())
-        # tasks.append(SarcasmDetection())
+        #for emotion in SemEval18SingleEmotionTask.EMOTIONS:
+        #    tasks.append(SemEval18SingleEmotionTask(emotion))
+        tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
         model = PrototypeLearner(args, tasks)
-        #model.add_task_classifier('prototype', PrototypeLearner(args, tasks))
-        model.to(device)
-        sampler = TaskSampler(tasks)
+        sampler = TaskSampler(tasks, method='random')
     results = train([sampler], model, args, device)
+

@@ -76,6 +76,7 @@ class PrototypeLearner(nn.Module):
                 params.requires_grad = True
         bert_out = 768
         embedding_dim = 500
+        # TODO add parameters to make layers
         self.classifier_layer = nn.Sequential(
             nn.Linear(bert_out, embedding_dim),
             nn.ReLU()
@@ -92,5 +93,17 @@ class PrototypeLearner(nn.Module):
         out = self.classifier_layer(cls_token_enc)
 
         return out
+
+    def calculate_centroids(self, support, num_classes): #, query_labels#, train_iter, task):
+        support, support_labels = support
+        #num_classes = task.tasks[train_iter.get_task_index()].num_classes
+        centroids = torch.zeros((num_classes, 500))
+        # compute centroids on support set according to equation 1 in the paper
+        unique_labels = support_labels.unique()
+
+        for label in unique_labels:
+            centroids[label] = support[(support_labels == label).squeeze(-1)].mean(dim=0)
+
+        return centroids
 
 
