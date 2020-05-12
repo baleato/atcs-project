@@ -52,15 +52,41 @@ class EpisodicSampler(torch.utils.data.Sampler):
             index_dict[i] = bin_labels
             label_distribution[i] = bin_labels.sum()
         return index_dict, label_distribution
-    # TODO finish rest of sampler functionality (below is equivalent to RandomSampler)
+
     def __iter__(self):
-        n = len(self.data_source)
-        if self.replacement:
-            return iter(torch.randint(high=n, size=(self.num_samples,), dtype=torch.int64).tolist())
-        return iter(torch.randperm(n).tolist())
+        index_dict, label_distribution = self.get_label_indicies()
+        label_sizes = label_distribution.values()
+        max_label = max(label_sizes)
+
+        balanced_labels = []
+        # expand labels with less examples than the most common one  (by duplicating x times)
+        for label in index_dict.keys():
+            indices = index_dict[label]
+            expand = int(np.floor(max_label/label_distribution[label]))
+            if expand > 1:
+                expanded_indices = np.tile(indices, expand)
+            else:
+                expanded_indices = indices
+            # pad labels with less examples to exactly match the number of the most common label
+            remainder = max_label % label_distribution[label]
+            expanded_indices = np.hstack(expanded_indices, np.random.choice(indices, remainder, replace=False))
+            np.random.shuffle(expanded_indices)
+            balanced_labels.append(expanded_indices)
+
+        # ensure alternating class labels
+        alternating_labels = np.asarray(list(zip(*balanced_labels))).flatten()
+        # final_iterable = []
+        # for i in range(max_label):
+        #     for j in range(len(balanced_labels)):
+        #         final_iterable.append(balanced_labels[j][i])
+        return iter(alternating_labels)
 
     def __len__(self):
-        return self.num_samples
+        _, label_distribution = self.get_label_indicies()
+        label_sizes = label_distribution.values()
+        num_labels = len(label_sizes)
+        max_label = max(label_sizes)
+        return num_labels * max_label
 
 def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True):
     """ expects input_ids, labels, attention_masks to be tensors"""
