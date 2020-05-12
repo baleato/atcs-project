@@ -76,7 +76,10 @@ class PrototypeLearner(nn.Module):
                 params.requires_grad = True
         bert_out = 768
         embedding_dim = 500
+<<<<<<< HEAD
         # TODO add parameters to make layers
+=======
+>>>>>>> be3215cef8a1e1e421107cf1652fa642eafa7094
         self.classifier_layer = nn.Sequential(
             nn.Linear(bert_out, embedding_dim),
             nn.ReLU()

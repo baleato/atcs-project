@@ -66,6 +66,7 @@ class TaskSamplerIter(object):
         if self.task_iters:
             task_index = self.sample_next_task()
             task_iter = self.task_iters[task_index]
+
             try:
                 batch = next(task_iter)
             except StopIteration:
@@ -175,6 +176,7 @@ class TaskSampler(Task):
         else:
             task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state) for task in self.tasks]
             self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
+
         return self._task_sampler_iter
 
     def _get_current_tasks(self):
@@ -292,7 +294,9 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         return self.criterion(predictions, labels.reshape(-1))
 
     def calculate_accuracy(self, predictions, labels):
-        gold_labels = labels[:, 0]
+        # TODO: investigate why labels is sometimes of shape [batch_size, 1] and others just [batch_size]
+        # print(predictions.shape, labels.shape)
+        gold_labels = torch.flatten(labels)
         n_correct = (torch.max(predictions, 1)[1].view(gold_labels.size()) == gold_labels).sum().item()
         n_total = len(gold_labels)
         return 100. * n_correct/n_total
@@ -355,6 +359,7 @@ class SarcasmDetection(Task):
         self.fn_tokenizer = fn_tokenizer
         self.num_classes = 2
 
+
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         """
         Returns an iterable over the single
@@ -392,3 +397,4 @@ class SarcasmDetection(Task):
         bin_labels = pred_labels == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
+

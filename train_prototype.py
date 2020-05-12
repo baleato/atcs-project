@@ -114,6 +114,7 @@ def train(tasks, model, args, device):
                 # pass, update weights.
 
                 support_embedding = model(support, attention_mask=support_mask)
+
                 centroids = model.calculate_centroids((support_embedding, support_labels), task.tasks[train_iter.get_task_index()].num_classes)#, query_labels, train_iter, task)
 
                 query_embedding = model(query, attention_mask=query_mask)
@@ -147,7 +148,8 @@ def train(tasks, model, args, device):
                 # saving redundant parameters
                 # Save model checkpoints.
                 if iterations % args.save_every == 0:
-                    acc = task.calculate_accuracy(distances, query_labels.squeeze().to(device))
+                    acc = task.calculate_accuracy(distances, query_labels.to(device))
+
                     snapshot_prefix = os.path.join(args.save_path, 'snapshot')
                     snapshot_path = (
                             snapshot_prefix +

@@ -94,7 +94,7 @@ def train(tasks, model, args, device):
 
                 # Feed sentences into BERT instance, compute loss, perform backward
                 # pass, update weights.
-                predictions = model(sentences, task.NAME, attention_mask=attention_masks)
+                predictions = model(sentences, task.get_name(), attention_mask=attention_masks)
 
                 loss = task.get_loss(predictions, labels.to(device))
                 loss.backward()
@@ -105,11 +105,11 @@ def train(tasks, model, args, device):
                 if iterations % args.log_every == 0:
                     acc = task.calculate_accuracy(predictions, labels.to(device))
                     iter_loss = running_loss / args.log_every
-                    writer.add_scalar('{}/Accuracy/train'.format(task.NAME), acc, iterations)
-                    writer.add_scalar('{}/Loss/train'.format(task.NAME), iter_loss, iterations)
+                    writer.add_scalar('{}/Accuracy/train'.format(task.get_name()), acc, iterations)
+                    writer.add_scalar('{}/Loss/train'.format(task.get_name()), iter_loss, iterations)
                     print(log_template.format(
                         str(timedelta(seconds=int(time.time() - start))),
-                        task.NAME,
+                        task.get_name(),
                         epoch,
                         iterations,
                         batch_idx+1, train_iter_len,
@@ -143,6 +143,7 @@ def train(tasks, model, args, device):
                     sentences = dev_batch[0].to(device)
                     labels = dev_batch[1]
                     attention_masks = dev_batch[2].to(device)
+
                     outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
                     # Loss
                     batch_dev_loss = task.get_loss(outputs, labels.to(device))
@@ -155,15 +156,15 @@ def train(tasks, model, args, device):
 
             print(dev_log_template.format(
                     str(timedelta(seconds=int(time.time() - start))),
-                    task.NAME,
+                    task.get_name(),
                     epoch,
                     iterations,
                     batch_idx+1, train_iter_len,
                     (batch_idx+1) / train_iter_len * 100,
                     dev_loss, dev_acc))
 
-            writer.add_scalar('{}/Accuracy/dev'.format(task.NAME), dev_acc, iterations)
-            writer.add_scalar('{}/Loss/dev'.format(task.NAME), dev_loss, iterations)
+            writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
+            writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
 
             if best_dev_acc < dev_acc:
                 best_dev_acc = dev_acc
@@ -204,4 +205,5 @@ if __name__ == '__main__':
         for task in tasks:
             model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
         sampler = TaskSampler(tasks, method='random')
+
     results = train([sampler], model, args, device)
