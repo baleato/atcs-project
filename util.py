@@ -37,15 +37,68 @@ def bert_tokenizer(sentences, tokenizer, max_length=32):
     attention_masks = torch.cat(attention_masks, dim=0)
     return input_ids, attention_masks
 
+class EpisodicSampler(torch.utils.data.Sampler):
+    """Expects TensorDataset with labels as second argument"""
+    def __init__(self, data_source):
+        self.data_source = data_source
 
-def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True):
+    def get_label_indicies(self):
+        index_dict = {}
+        label_distribution = {}
+        labels = self.data_source.tensors[1].squeeze().numpy()
+        unique_labels = np.unique(labels)
+        for i in unique_labels:
+            bin_labels = np.nonzero(labels == i)[0]
+            index_dict[i] = bin_labels
+            label_distribution[i] = bin_labels.size
+        return index_dict, label_distribution
+
+    def __iter__(self):
+        index_dict, label_distribution = self.get_label_indicies()
+        label_sizes = label_distribution.values()
+        max_label = max(label_sizes)
+
+        balanced_labels = []
+        # expand labels with less examples than the most common one  (by duplicating x times)
+        for label in index_dict.keys():
+            indices = index_dict[label]
+            expand = int(np.floor(max_label/label_distribution[label]))
+            if expand > 1:
+                expanded_indices = np.tile(indices, expand)
+            else:
+                expanded_indices = indices
+            # pad labels with less examples to exactly match the number of the most common label
+            remainder = max_label % label_distribution[label]
+            expanded_indices = np.hstack((expanded_indices, np.random.choice(indices, remainder, replace=False)))
+            np.random.shuffle(expanded_indices)
+            balanced_labels.append(expanded_indices)
+
+        # ensure alternating class labels
+        alternating_labels = np.asarray(list(zip(*balanced_labels))).flatten()
+        # final_iterable = []
+        # for i in range(max_label):
+        #     for j in range(len(balanced_labels)):
+        #         final_iterable.append(balanced_labels[j][i])
+        return iter(alternating_labels)
+
+    def __len__(self):
+        _, label_distribution = self.get_label_indicies()
+        label_sizes = label_distribution.values()
+        num_labels = len(label_sizes)
+        max_label = max(label_sizes)
+        return num_labels * max_label
+
+def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True):
     """ expects input_ids, labels, attention_masks to be tensors"""
 
     # Load tensors into torch Dataset object
     dataset = TensorDataset(input_ids, labels, attention_masks)
     # Determine what sampling mode should be used
     if shuffle:
-        sampler = RandomSampler(dataset)
+        if episodic:
+            sampler = EpisodicSampler(dataset)
+        else:
+            sampler = RandomSampler(dataset)
     else:
         sampler = SequentialSampler(dataset)
 
