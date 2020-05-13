@@ -14,13 +14,13 @@ from util import (
     save_model, split_episode)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
-from models import MetaLearner
+from models import ProtoMAMLLearner
 
 from datetime import datetime
 import torch.optim as optim
 
 
-def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, num_updates=1, num_samples=4, meta_batch_size=1):
+def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta_iters=1000, num_updates=5, meta_batch_size=1):
     """
     We'll start with binary classifiers (2-way classification)
     for step in range(num_steps):
@@ -47,17 +47,16 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
         - custom_task_ratio: default None only pass if custom task probabilities as sampling method
         - meta_iters: number of meta-training iterations
         - num_updates: number of updates in inner loop on same task_batch
-        - num_classes: number of classes (N in N-way classification.). Default 2.
-        - num_samples: examples for inner gradient update (K in K-shotlearning).
-        - meta_batch_size: number of N-way tasks per batch
+        [NOT needed!?: num_classes: number of classes (N in N-way classification.). Default 2.]
+        - meta_batch_size: number of N-way tasks per meta-batch (meta-update)
     """
     # Define logging
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
         os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
 
-    header = '      Time      Task      Iteration      Loss   Dev/Loss     Accuracy      Dev/Acc'
-    log_template = '{:>10} {:>25} {:10.0f} {:10.6f}              {:10.6f}'
+    header = '      Time      Task      Iteration      Loss'
+    log_template = '{:>10} {:>25} {:10.0f} {:10.6f}'
 
     print(header)
     start = time.time()
@@ -65,25 +64,29 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
     # Define optimizers and loss function
     # TODO validate if BertAdam works better and then also use in MTL training
     optimizer = AdamW(params=model.parameters(), lr=args.lr, correct_bias=False)
+    # ProtoNets always have CrossEntropy loss due to softmax output
+    cross_entropy = nn.CrossEntropyLoss()
 
     print('Loading Tokenizer..')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     print('done.')
 
     sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio)
+    task_model = type(model)(args, hidden_dims=[500])
 
-    iterations, running_loss = 0, 0.0
+    iterations = 0
     # Iterate over the data
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     model.train()
     # outer loop (meta-iterations)
     for i in range(meta_iters):
         grads = []
+        iteration_loss = 0
         # inner loop (sample different tasks)
         for task_sample in range(meta_batch_size):
             # clone original model
-            task_model = type(model)()
             task_model.load_state_dict(model.state_dict())
+            task_model.to(device)
             task_model.train()
 
             # new optimizer for every new task model
@@ -94,70 +97,73 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
             support, query = split_episode(batch)
 
             # setup output layer (via meta-model's prototype network)
-            proto_embeddings = model.proto_net()
-            prototypes = model.proto_net.calculate_centroids((proto_embeddings, support[1]), sampler.get_num_classes)
+            proto_embeddings = model.proto_net(support[0].to(device), attention_mask=support[2].to(device))
+            prototypes = model.proto_net.calculate_centroids((proto_embeddings, support[1]), sampler.get_num_classes())
             W, b = task_model.calculate_output_params(prototypes.detach())
-            task_model.initialize_classifier(W, b, device)
+            task_model.initialize_classifier(W, b)
 
             # train some iterations on support set
             for update in range(num_updates):
                 task_optimizer.zero_grad()
                 predictions = task_model(support[0].to(device), attention_mask=support[2].to(device))
-                task_loss = sampler.get_loss(predictions, support[1].to(device))
+                task_loss = cross_entropy(predictions, support[1].long().squeeze().to(device))
                 task_loss.backward()
                 task_optimizer.step()
 
             # trick to add prototypes back to computation graph
-            W = prototypes + W.detach() - prototypes.detach()
-            b = prototypes + b.detach() - prototypes.detach()
-            task_model.initiallize_classifier(W, b, device)
+            W = nn.Parameter(prototypes + (W - prototypes).detach())
+            # b = prototypes + b.detach().unsqueeze(-1) - prototypes.detach()
+            task_model.initialize_classifier(W, b)
 
             # calculate gradients for meta update on the query set
             predictions = task_model(query[0].to(device), attention_mask=query[2].to(device))
-            query_loss = sampler.get_loss(predictions, query[1].to(device))
+            query_loss = cross_entropy(predictions, query[1].long().squeeze().to(device))
             query_loss.backward()
+            iteration_loss += query_loss.item()
 
             # save gradients of first task model
             if task_sample == 0:
                 for param in task_model.parameters():
-                    grads.append(param.grad)
+                    if param.requires_grad:
+                        grads.append(param.grad)
             # add the gradients of all task samples
             else:
-                for p, param in enumerate(task_model.parameters()):
-                    grads[p] += param.grad
+                p = 0
+                for param in task_model.parameters():
+                    if param.requires_grad:
+                        grads[p] += param.grad
+                        p += 1
 
         # perform meta update
         # first load/add the calculated gradients in the meta-model
         # (already contains gradients from prototype calculation)
-        for p, param in enumerate(model.parameters()):
-            param.grad += grads[p]
+        p = 0
+        for param in model.parameters():
+            if param.requires_grad:
+                param.grad += grads[p]
+                p += 1
         # update model parameters according to the gradients from inner loop (clear gradients afterwards)
         optimizer.step()
         optimizer.zero_grad()
 
-        running_loss += query_loss.item()
         iterations += 1
         if iterations % args.log_every == 0:
-            acc = task.calculate_accuracy(predictions, query[1].to(device))
-            iter_loss = running_loss / args.log_every
-            writer.add_scalar('{}/Accuracy/train'.format(task.get_name()), acc, iterations)
-            writer.add_scalar('{}/Loss/train'.format(task.get_name()), iter_loss, iterations)
+            iter_loss = iteration_loss / meta_batch_size
+            writer.add_scalar('{}/Loss/train'.format(sampler.get_name()), iter_loss, iterations)
             print(log_template.format(
                 str(timedelta(seconds=int(time.time() - start))),
-                task.get_name(),
+                sampler.get_name(),
                 iterations,
-                iter_loss, acc))
-            running_loss = 0.0
+                iter_loss))
 
         # saving redundant parameters
         # Save model checkpoints.
         if iterations % args.save_every == 0:
-            acc = task.calculate_accuracy(predictions, query[1].to(device))
             snapshot_prefix = os.path.join(args.save_path, 'snapshot')
             snapshot_path = (
                     snapshot_prefix +
-                    '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-            ).format(acc, query_loss.item(), iterations)
+                    '_iter_{}_model.pt'
+            ).format(iterations)
             # FIXME: save_model
             # save_model(model, args.unfreeze_num, snapshot_path)
             # Keep only the last snapshot
@@ -176,19 +182,18 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = MetaLearner(args)
+        # TODO find way to pass right number of hidden layers when loading from snapshot
+        model = ProtoMAMLLearner(args, hidden_dims=[500])
         model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
-        model = MetaLearner(args)
-        model.to(device)
-        print("Tasks")
-        tasks = []
-        # tasks.append(SemEval18Task())
-        tasks.append(SemEval18SurpriseTask())
-        tasks.append(SemEval18TrustTask())
-        tasks.append(SarcasmDetection())
-        tasks.append(OffensevalTask())
-        for task in tasks:
-            model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
-        sampler = TaskSampler(tasks, method='random')
-    results = train([sampler], model, args, device)
+        model = ProtoMAMLLearner(args, hidden_dims=[500])
+
+    model.to(device)
+    print("Tasks")
+    tasks = []
+    #for emotion in SemEval18SingleEmotionTask.EMOTIONS:
+    #    tasks.append(SemEval18SingleEmotionTask(emotion))
+    tasks.append(SarcasmDetection())
+    tasks.append(OffensevalTask())
+
+    meta_train(tasks, model, args, device)

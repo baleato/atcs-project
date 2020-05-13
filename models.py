@@ -88,14 +88,23 @@ class PrototypeLearner(nn.Module):
     def calculate_centroids(self, support, num_classes): #, query_labels#, train_iter, task):
         support, support_labels = support
         #num_classes = task.tasks[train_iter.get_task_index()].num_classes
-        centroids = torch.randn((num_classes, 500))
+        centroids = torch.randn((num_classes, 500)).to(support.device)
         # compute centroids on support set according to equation 1 in the paper
         unique_labels = support_labels.unique()
 
-        for label in unique_labels:
-            centroids[label] = support[(support_labels == label).squeeze(-1)].mean(dim=0)
-
-        return centroids
+        # for label in unique_labels:
+        #    centroids[label] = support[(support_labels == label).squeeze(-1)].mean(dim=0)
+        prototypes = []
+        found = False
+        for i in range(num_classes):
+            for label in unique_labels:
+                if i == label.item():
+                    prototypes.append(support[(support_labels == label).squeeze(-1)].mean(dim=0))
+                    found = True
+            if not found:
+                prototypes.append(torch.randn(500))
+        return torch.stack(prototypes)
+        # return centroids
 
 
 class ProtoMAMLLearner(nn.Module):
@@ -105,13 +114,13 @@ class ProtoMAMLLearner(nn.Module):
         self.output_layer = nn.Linear(target_dim, 2)
 
     def calculate_output_params(self, prototypes):
-        W = 2 * prototypes
-        b = - torch.norm(prototypes, p=2, dim=1)
+        W = nn.Parameter(2 * prototypes)
+        b = nn.Parameter(- torch.norm(prototypes, p=2, dim=1))
         return W, b
 
-    def initialize_classifier(self, W, b, device):
-        self.output_layer.weight.data = W.to(device)
-        self.output_layer.bias.data = b.to(device)
+    def initialize_classifier(self, W, b):
+        self.output_layer.weight = W
+        self.output_layer.bias = b
 
     def forward(self, inputs, attention_mask=None):
         proto_embedding = self.proto_net(inputs, attention_mask=attention_mask)
