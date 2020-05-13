@@ -211,6 +211,8 @@ class TaskSampler(Task):
     def get_name(self):
         return self._get_current_tasks().get_name()
 
+    def get_num_classes(self):
+        return self._get_current_tasks().num_classes
 
 class SemEval18Task(Task):
     NAME = 'SemEval18'
@@ -224,7 +226,8 @@ class SemEval18Task(Task):
             'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
         ]
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = MLPClassifier(target_dim=len(self.emotions))
+        self.num_classes = len(self.emotions)
+        self.classifier = MLPClassifier(target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):

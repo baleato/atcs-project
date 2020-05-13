@@ -11,7 +11,7 @@ from transformers import BertTokenizer, AdamW
 
 from util import (
     get_args, get_pytorch_device, get_model, load_model,
-    save_model, split_episode, compute_prototypes, initiallize_classifier)
+    save_model, split_episode)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import MetaLearner
@@ -57,7 +57,7 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
         os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
 
     header = '      Time      Task      Iteration      Loss   Dev/Loss     Accuracy      Dev/Acc'
-    log_template = '{:>10} {:>20} {:10.0f} {:10.6f}              {:10.6f}'
+    log_template = '{:>10} {:>25} {:10.0f} {:10.6f}              {:10.6f}'
 
     print(header)
     start = time.time()
@@ -72,7 +72,6 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
 
     sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio)
 
-    best_dev_acc = -1
     iterations, running_loss = 0, 0.0
     # Iterate over the data
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
@@ -94,15 +93,16 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
             batch = next(train_iter)
             support, query = split_episode(batch)
 
-            # setup output layer (via prototype network)
-            # TODO ensure functionality
-            prototypes = compute_prototypes(model, sampler.get_name(), support)
-            initiallize_classifier(task_model, prototypes.detach())
+            # setup output layer (via meta-model's prototype network)
+            proto_embeddings = model.proto_net()
+            prototypes = model.proto_net.calculate_centroids((proto_embeddings, support[1]), sampler.get_num_classes)
+            W, b = task_model.calculate_output_params(prototypes.detach())
+            task_model.initialize_classifier(W, b, device)
 
             # train some iterations on support set
             for update in range(num_updates):
                 task_optimizer.zero_grad()
-                predictions = task_model(support[0].to(device), sampler.get_name(), attention_mask=support[2].to(device))
+                predictions = task_model(support[0].to(device), attention_mask=support[2].to(device))
                 task_loss = sampler.get_loss(predictions, support[1].to(device))
                 task_loss.backward()
                 task_optimizer.step()
@@ -110,10 +110,10 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
             # trick to add prototypes back to computation graph
             W = prototypes + W.detach() - prototypes.detach()
             b = prototypes + b.detach() - prototypes.detach()
-            initiallize_classifier(task_model, W, b)
+            task_model.initiallize_classifier(W, b, device)
 
             # calculate gradients for meta update on the query set
-            predictions = task_model(query[0].to(device), sampler.get_name(), attention_mask=query[2].to(device))
+            predictions = task_model(query[0].to(device), attention_mask=query[2].to(device))
             query_loss = sampler.get_loss(predictions, query[1].to(device))
             query_loss.backward()
 
@@ -127,11 +127,13 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
                     grads[p] += param.grad
 
         # perform meta update
-        # first load the calculated gradients in the meta-model
+        # first load/add the calculated gradients in the meta-model
+        # (already contains gradients from prototype calculation)
         for p, param in enumerate(model.parameters()):
-            param.grad = grads[p]
-        # update model parameters according to the gradients from inner loop
+            param.grad += grads[p]
+        # update model parameters according to the gradients from inner loop (clear gradients afterwards)
         optimizer.step()
+        optimizer.zero_grad()
 
         running_loss += query_loss.item()
         iterations += 1

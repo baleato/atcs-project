@@ -98,15 +98,22 @@ class PrototypeLearner(nn.Module):
         return centroids
 
 
-class ProtoMAMLLearner(PrototypeLearner):
+class ProtoMAMLLearner(nn.Module):
     def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
-        super(ProtoMAMLLearner, self).__init__(config, input_dim, target_dim, hidden_dims, nonlinearity, dropout)
+        super(ProtoMAMLLearner, self).__init__()
+        self.proto_net = PrototypeLearner(config, input_dim, target_dim, hidden_dims, nonlinearity, dropout)
+        self.output_layer = nn.Linear(target_dim, 2)
 
     def calculate_output_params(self, prototypes):
         W = 2 * prototypes
         b = - torch.norm(prototypes, p=2, dim=1)
         return W, b
 
-    def initiallize_classifier(self, W, b, device):
-        self.classifier_layer.network[-1].weight.data = W.to(device)
-        self.classifier_layer.network[-1].bias.data = b.to(device)
+    def initialize_classifier(self, W, b, device):
+        self.output_layer.weight.data = W.to(device)
+        self.output_layer.bias.data = b.to(device)
+
+    def forward(self, inputs, attention_mask=None):
+        proto_embedding = self.proto_net(inputs, attention_mask=attention_mask)
+        out = self.output_layer(proto_embedding)
+        return out
