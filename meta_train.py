@@ -85,6 +85,7 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
             # clone original model
             task_model = type(model)()
             task_model.load_state_dict(model.state_dict())
+            task_model.train()
 
             # new optimizer for every new task model
             task_optimizer = AdamW(params=task_model.parameters(), lr=args.lr, correct_bias=False)
@@ -95,8 +96,8 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
 
             # setup output layer (via prototype network)
             # TODO ensure functionality
-            prototypes = compute_prototypes(task_model, sampler.get_name(), support)
-            initiallize_classifier(task_model, prototypes)
+            prototypes = compute_prototypes(model, sampler.get_name(), support)
+            initiallize_classifier(task_model, prototypes.detach())
 
             # train some iterations on support set
             for update in range(num_updates):
@@ -106,12 +107,17 @@ def meta_train(tasks, method='random', custom_task_ratio=None, meta_iters=1000, 
                 task_loss.backward()
                 task_optimizer.step()
 
+            # trick to add prototypes back to computation graph
+            W = prototypes + W.detach() - prototypes.detach()
+            b = prototypes + b.detach() - prototypes.detach()
+            initiallize_classifier(task_model, W, b)
+
             # calculate gradients for meta update on the query set
             predictions = task_model(query[0].to(device), sampler.get_name(), attention_mask=query[2].to(device))
             query_loss = sampler.get_loss(predictions, query[1].to(device))
             query_loss.backward()
 
-            # save gradients after first task sample
+            # save gradients of first task model
             if task_sample == 0:
                 for param in task_model.parameters():
                     grads.append(param.grad)
