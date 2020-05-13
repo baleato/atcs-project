@@ -54,9 +54,9 @@ def train(tasks, model, args, device):
     # Define logging
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
-        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
+        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
 
-    header = '      Time                    Task   Epoch  Iteration   Progress  %Epoch       ' + \
+    header = '      Time                     Task   Epoch  Iteration   Progress  %Epoch       ' + \
         'Loss   Dev/Loss     Accuracy      Dev/Acc'
     log_template = '{:>10} {:>25} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
         '{:10.6f}              {:10.6f}'
