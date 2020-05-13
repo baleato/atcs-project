@@ -33,10 +33,12 @@ class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
     """
-    def __init__(self, input_dim=768, target_dim=2, hidden_dims=[], nonlinearity=None, dropout=0.0):
+    def __init__(self, input_dim=768, target_dim=2, hidden_dims=None, nonlinearity=None, dropout=0.0):
         super(MLPClassifier, self).__init__()
 
         # append input and output dimension to layer list
+        if hidden_dims is None:
+            hidden_dims = []
         hidden_dims.insert(0, input_dim)
         hidden_dims.append(target_dim)
 
@@ -63,8 +65,10 @@ class MLPClassifier(nn.Module):
 
 
 class PrototypeLearner(nn.Module):
-    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=[500], nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
         super(PrototypeLearner, self).__init__()
+        if hidden_dims is None:
+            hidden_dims = []
         self.encoder = BertModel.from_pretrained("bert-base-uncased")
         self.encoder.requires_grad_(False)
         for block in self.encoder.encoder.layer[-(config.unfreeze_num):]:
@@ -95,7 +99,7 @@ class PrototypeLearner(nn.Module):
 
 
 class ProtoMAMLLearner(PrototypeLearner):
-    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=[500], nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
         super(ProtoMAMLLearner, self).__init__(config, input_dim, target_dim, hidden_dims, nonlinearity, dropout)
 
     def calculate_output_params(self, prototypes):
@@ -103,6 +107,6 @@ class ProtoMAMLLearner(PrototypeLearner):
         b = - torch.norm(prototypes, p=2, dim=1)
         return W, b
 
-    def initiallize_classifier(self, W, b):
-        self.classifier_layer[-1].weight.data = W
-        self.classifier_layer[-1].bias.data = b
+    def initiallize_classifier(self, W, b, device):
+        self.classifier_layer.network[-1].weight.data = W.to(device)
+        self.classifier_layer.network[-1].bias.data = b.to(device)
