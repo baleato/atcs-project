@@ -15,7 +15,7 @@ class Task(object):
     NAME = 'TASK_NAME'
 
     def __init__(self):
-        pass
+        self.num_classes = None
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1):
         raise NotImplementedError
@@ -32,6 +32,8 @@ class Task(object):
     def get_name(self):
         return self.NAME
 
+    def get_num_classes(self):
+        return self.num_classes
 
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
@@ -64,6 +66,7 @@ class TaskSamplerIter(object):
         if self.task_iters:
             task_index = self.sample_next_task()
             task_iter = self.task_iters[task_index]
+
             try:
                 batch = next(task_iter)
             except StopIteration:
@@ -173,6 +176,7 @@ class TaskSampler(Task):
         else:
             task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state) for task in self.tasks]
             self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
+
         return self._task_sampler_iter
 
     def _get_current_tasks(self):
@@ -260,6 +264,8 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         self.fn_tokenizer = fn_tokenizer
         self.classifier = MLPClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
+        self.num_classes = 2
+
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
         """
@@ -306,7 +312,11 @@ class OffensevalTask(Task):
         self.fn_tokenizer = fn_tokenizer
         self.classifier = MLPClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
+        self.num_classes = 2
 
+    # TODO: allow for
+    # train_iter = task.get_iter('train')
+    # len(train_iter) -> returns the number of batches
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
         if split == 'test':
@@ -333,7 +343,7 @@ class OffensevalTask(Task):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-        return self.criterion(predictions, labels)
+      return self.criterion(predictions, labels)
 
     def calculate_accuracy(self, predictions, labels):
         bin_labels = predictions.argmax(dim=1, keepdim=False) == labels
@@ -348,6 +358,8 @@ class SarcasmDetection(Task):
         self.classifier = MLPClassifier(target_dim=1)
         self.criterion = BCEWithLogitsLoss()
         self.fn_tokenizer = fn_tokenizer
+        self.num_classes = 2
+
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         """
@@ -380,7 +392,10 @@ class SarcasmDetection(Task):
         return self.criterion(predictions, labels.type_as(predictions).reshape_as(predictions))
 
     def calculate_accuracy(self, predictions, labels):
-        pred_labels = torch.sigmoid(predictions).round()
+        labels = labels.squeeze(-1)
+        pred_labels = torch.nn.functional.softmax(-predictions, dim=1).argmax(dim=1)  # according to equation 2 in the paper
+        #pred_labels = torch.sigmoid(predictions).round()
         bin_labels = pred_labels == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
+
