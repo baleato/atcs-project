@@ -109,6 +109,36 @@ def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=T
                             )
     return dataloader
 
+def split_episode(batch, ratio=.75):
+    batch_size = batch[0].size()[0]
+    support_size = round(batch_size*ratio)
+
+    support_idx_pos = np.random.choice(np.arange(0,batch_size,2), np.ceil(support_size/2), replace=False)
+    support_idx_neg = np.random.choice(np.arange(0,batch_size,2), np.floor(support_size/2), replace=False)
+    support_idx = np.sort(np.hstack(support_idx_pos,support_idx_neg))
+    query_idx = np.setdiff1d(np.arange(batch_size), support_idx)
+
+    support_set = (batch[0][support_idx], batch[1][support_idx], batch[2][support_idx])
+    query_set = (batch[0][query_idx], batch[1][query_idx], batch[2][query_idx])
+    return support_set, query_set
+
+def compute_prototypes(model, name, support_set):
+    labels = support_set[1].squeeze().unique()
+    labels.sort()
+    prototypes = []
+    for label in labels:
+        label_idx = support_set[1].squeeze() == label
+        embeddings = model(support_set[0][label_idx], name, support_set[2][label_idx])
+        prototypes.append(embeddings.mean(dim=0))
+    return torch.cat(prototypes, dim=0)
+
+# TODO implement in following fashion (below does not work yet)
+def initiallize_classifier(model, prototypes):
+    W = 2*prototypes
+    b = torch.norm(prototypes, p=2, dim=1)
+    model.output_layer.weight.data = W
+    model.output_layer.bias.data = b
+
 
 def get_model():
     """

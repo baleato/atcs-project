@@ -59,6 +59,19 @@ class TaskSamplerIter(object):
         else:
             return np.random.choice(len(self.task_iters), p=self.task_probs)
 
+    def get_task_batch(self, task_index):
+        task_iter = self.task_iters[task_index]
+        try:
+            batch = next(task_iter)
+        except StopIteration:
+            # Note that depending on how next it's implemented it could also
+            # return an empty list instead of raising StopIteration
+
+            # if iterator is empty initialize new iterator from original dataloader
+            task_iter = iter(self.original_dataloaders[task_index])
+            batch = next(task_iter)
+        return batch
+
     def __iter__(self):
         return self
 
@@ -183,6 +196,9 @@ class TaskSampler(Task):
         task_index = self._task_sampler_iter.get_task_index()
         return self.tasks[task_index]
 
+    def get_task(self, task_index):
+        return self.tasks[task_index]
+
     def get_classifier(self):
         return self._get_current_tasks.get_classifier()
 
@@ -299,6 +315,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         gold_labels = torch.flatten(labels)
         n_correct = (torch.max(predictions, 1)[1].view(gold_labels.size()) == gold_labels).sum().item()
         n_total = len(gold_labels)
+        # TODO agree on consistent format of accuracy (in percent or decimal)
         return 100. * n_correct/n_total
 
     def get_name(self):

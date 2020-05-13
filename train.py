@@ -7,7 +7,7 @@ from datetime import timedelta
 from torch import load
 import torch.nn as nn
 import torch
-from transformers import BertTokenizer
+from transformers import BertTokenizer, AdamW
 
 from util import (
     get_args, get_pytorch_device, get_model, load_model,
@@ -18,36 +18,6 @@ from models import MetaLearner, PrototypeLearner
 
 from datetime import datetime
 import torch.optim as optim
-
-
-def meta_train():
-    """
-    We'll start with binary classifiers (2-way classification)
-    for step in range(num_steps):
-        # Training
-        for i in num_samples:
-            task_batch_train := Sample tasks based on meta_batch_size (training set) (and task frequencies)
-            for task in task_batch_train:
-                forward
-                loss
-                backward
-
-        # Meta-training
-        if step % meta_every == 0:
-            task_batch_test :=  Sample tasks not included in task_batch_train
-                                meta_batch_test_size (> meta_batch_size, all?)
-            for task in task_batch_test:
-                forward
-                loss
-                backward
-
-    params:
-        - tasks
-        - num_classes: number of classes (N in N-way classification.). Default 2.
-        - num_samples: examples for inner gradient update (K in K-shotlearning).
-        - meta_batch_size: number of N-way tasks per batch
-    """
-    pass
 
 
 def train(tasks, model, args, device):
