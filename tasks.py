@@ -15,7 +15,7 @@ class Task(object):
     NAME = 'TASK_NAME'
 
     def __init__(self):
-        pass
+        self.num_classes = None
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1):
         raise NotImplementedError
@@ -302,7 +302,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         return 100. * n_correct/n_total
 
     def get_name(self):
-        return 'SemEval18{}'.format(self.emotion)
+        return 'SemEval18_{}'.format(self.emotion)
 
 
 class OffensevalTask(Task):
@@ -326,6 +326,7 @@ class OffensevalTask(Task):
             data_df_labels[1].replace(to_replace='OFF', value=1, inplace=True)
             data_df_labels[1].replace(to_replace='NOT', value=0, inplace=True)
             labels = data_df_labels[1].values
+        # TODO Make Dev set
         else:
             data_df = pd.read_csv('data/offenseval/offenseval-training-v1.tsv', sep='\t')
             sentences = data_df.tweet.values

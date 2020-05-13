@@ -16,17 +16,13 @@ class MetaLearner(nn.Module):
                 params.requires_grad = True
 
     def forward(self, inputs, task_name=None, attention_mask=None):
+        task_module_name = 'task_{}'.format(task_name)
+        assert task_module_name in self._modules
+
         encoded = self.encoder(inputs, attention_mask=attention_mask)[0]
         cls_token_enc = encoded[:, 0, :]
-        if task_name:
-            task_module_name = 'task_{}'.format(task_name)
-            assert task_module_name in self._modules or 'task_prototype' in self._modules
-            if 'task_prototype' in self._modules:
-                task_module_name = 'task_prototype'
-            classifier = self._modules[task_module_name]
-            return classifier(cls_token_enc)
-        else:
-            return cls_token_enc
+        classifier = self._modules[task_module_name]
+        return classifier(cls_token_enc)
 
     def add_task_classifier(self, task_name, classifier):
         assert issubclass(type(classifier), nn.Module)
