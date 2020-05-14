@@ -73,6 +73,7 @@ if __name__ == '__main__':
     model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     model.to(device)
 
+    # TODO replace with options of test datasets
     if args.task == 'OffenseEval':
         task = OffensevalTask()
     else:
