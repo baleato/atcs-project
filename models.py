@@ -118,7 +118,13 @@ class ProtoMAMLLearner(nn.Module):
         b = nn.Parameter(- torch.norm(prototypes, p=2, dim=1))
         return W, b
 
-    def initialize_classifier(self, W, b):
+    def initialize_classifier(self, W, b, hard_replace=False):
+        # hard replace completely deletes the Parameter from memory
+        # if the parameter was specified in the optimizer it needs to be replaced with a parameter
+        # before calling optimizer.step()
+        if hard_replace:
+            del self.output_layer.weight
+            del self.output_layer.bias
         self.output_layer.weight = W
         self.output_layer.bias = b
 

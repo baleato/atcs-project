@@ -111,9 +111,9 @@ def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta
                 task_optimizer.step()
 
             # trick to add prototypes back to computation graph
-            W = nn.Parameter(prototypes + (W - prototypes).detach())
-            # b = prototypes + b.detach().unsqueeze(-1) - prototypes.detach()
-            task_model.initialize_classifier(W, b)
+            W = prototypes + (W - prototypes).detach()
+            b = (prototypes + (b.unsqueeze(-1) - prototypes).detach()).mean(dim=1)
+            task_model.initialize_classifier(W, b, hard_replace=True)
 
             # calculate gradients for meta update on the query set
             predictions = task_model(query[0].to(device), attention_mask=query[2].to(device))
@@ -121,16 +121,21 @@ def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta
             query_loss.backward()
             iteration_loss += query_loss.item()
 
+            # register W and b parameters again to avoid error in weight update
+            W = nn.Parameter(W)
+            b = nn.Parameter(b)
+            task_model.initialize_classifier(W, b, hard_replace=True)
+
             # save gradients of first task model
             if task_sample == 0:
                 for param in task_model.parameters():
-                    if param.requires_grad:
+                    if param.requires_grad and param.grad is not None:
                         grads.append(param.grad)
             # add the gradients of all task samples
             else:
                 p = 0
                 for param in task_model.parameters():
-                    if param.requires_grad:
+                    if param.requires_grad and param.grad is not None:
                         grads[p] += param.grad
                         p += 1
 
@@ -139,7 +144,7 @@ def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta
         # (already contains gradients from prototype calculation)
         p = 0
         for param in model.parameters():
-            if param.requires_grad:
+            if param.requires_grad and param.grad is not None:
                 param.grad += grads[p]
                 p += 1
         # update model parameters according to the gradients from inner loop (clear gradients afterwards)
