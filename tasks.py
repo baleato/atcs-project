@@ -92,7 +92,7 @@ class TaskSamplerIter(object):
 
             self.task_index = task_index
             self.batch_idx += 1
-            if self.batch_idx > self.num_total_batches:
+            if self.batch_idx == self.num_total_batches+1:
                 logging.warning(
                     (
                         'Number of batches exceeds the expected amount. ' +
