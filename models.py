@@ -87,24 +87,16 @@ class PrototypeLearner(nn.Module):
 
     def calculate_centroids(self, support, num_classes): #, query_labels#, train_iter, task):
         support, support_labels = support
-        #num_classes = task.tasks[train_iter.get_task_index()].num_classes
-        centroids = torch.randn((num_classes, 500)).to(support.device)
         # compute centroids on support set according to equation 1 in the paper
         unique_labels = support_labels.unique()
-
-        # for label in unique_labels:
-        #    centroids[label] = support[(support_labels == label).squeeze(-1)].mean(dim=0)
-        prototypes = []
-        found = False
+        centroids = []
         for i in range(num_classes):
-            for label in unique_labels:
-                if i == label.item():
-                    prototypes.append(support[(support_labels == label).squeeze(-1)].mean(dim=0))
-                    found = True
-            if not found:
-                prototypes.append(torch.randn(500))
-        return torch.stack(prototypes)
-        # return centroids
+            if i in unique_labels:
+                centroids.append(support[(support_labels == i).squeeze(-1)].mean(dim=0))
+            else:
+                # fill centroids for missing labels with random normal noise
+                centroids.append(torch.randn(500))
+        return torch.stack(centroids)
 
 
 class ProtoMAMLLearner(nn.Module):
