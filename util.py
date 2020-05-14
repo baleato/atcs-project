@@ -196,3 +196,23 @@ def get_args():
     parser.add_argument('--lr', type=float, default=5e-5)
     args = parser.parse_args()
     return args
+
+def get_test_args():
+    parser = ArgumentParser()
+    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--dataset_root', type=str,
+                        default=os.path.join(os.getcwd(), '.data'))
+    parser.add_argument('--save_path', type=str, default='test_results')
+    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--freeze_bert', default=False, action='store_true')
+    parser.add_argument('--unfreeze_num', type=int, default=2)
+    parser.add_argument('--resume_snapshot', type=str, default='')
+    parser.add_argument('--model', type=str, default='ProtoMAML')
+    parser.add_argument('--task', type=str, default='OffenseEval')
+    parser.add_argument('--k', type=int, default=4)
+    parser.add_argument('--episodes', type=str, default='')
+    parser.add_argument('--generate_episodes', type=int, default=10)
+    parser.add_argument('--num_updates', type=int, default=5)
+    parser.add_argument('--lr', type=float, default=5e-5)
+    args = parser.parse_args()
+    return args
