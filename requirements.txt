@@ -3,4 +3,5 @@ tensorboard
 tokenizers
 torch
 transformers
+numpy
 pandas
