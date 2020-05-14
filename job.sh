@@ -25,4 +25,4 @@ cd ${WORKING_DIR}/atcs-project
 
 pip install --user -r requirements.txt
 
-srun python meta_train.py --batch_size 32  --lr 0.001 --save_path ~/results/
+srun python train.py --batch_size 32  --lr 0.001 --save_path ~/results/
