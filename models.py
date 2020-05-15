@@ -117,8 +117,11 @@ class ProtoMAMLLearner(nn.Module):
         if hard_replace:
             del self.output_layer.weight
             del self.output_layer.bias
-        self.output_layer.weight = W
-        self.output_layer.bias = b
+            self.output_layer.weight = W
+            self.output_layer.bias = b
+        else:
+            self.output_layer.weight.data = W
+            self.output_layer.bias.data = b
 
     def forward(self, inputs, attention_mask=None):
         proto_embedding = self.proto_net(inputs, attention_mask=attention_mask)
