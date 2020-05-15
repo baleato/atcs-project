@@ -35,7 +35,7 @@ class MetaLearner(nn.Module):
         bert_model_copy = deepcopy(self.encoder)
 
         # Delete frozen layers from model_copy instance, save state_dicts
-        state_dicts = {}
+        state_dicts = {'unfreeze_num': unfreeze_num}
         for module in self._modules:
             if module == 'encoder':
                 for i in range(1, unfreeze_num+1):
@@ -45,9 +45,10 @@ class MetaLearner(nn.Module):
         torch.save(state_dicts, snapshot_path)
 
 
-    def load_model(self, path, unfreeze_num, device):
+    def load_model(self, path, device):
         # Load dictionary with BERT and MLP state_dicts
         checkpoint = torch.load(path, map_location=device)
+        unfreeze_num = checkpoint['unfreeze_num']
         # Overwrite last n BERT blocks, overwrite MLP params
         for i in range(1, unfreeze_num + 1):
             self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])
@@ -115,9 +116,8 @@ class PrototypeLearner(nn.Module):
 
         return out
 
-    def calculate_centroids(self, support, num_classes): #, query_labels#, train_iter, task):
+    def calculate_centroids(self, support, num_classes):
         support, support_labels = support
-        #num_classes = task.tasks[train_iter.get_task_index()].num_classes
         centroids = torch.zeros((num_classes, 500))
         # compute centroids on support set according to equation 1 in the paper
         unique_labels = support_labels.unique()
@@ -133,7 +133,7 @@ class PrototypeLearner(nn.Module):
         bert_model_copy = deepcopy(self.encoder)
 
         # Delete frozen layers from model_copy instance, save state_dicts
-        state_dicts = {}
+        state_dicts = {'unfreeze_num': unfreeze_num}
         for module in self._modules:
             if module == 'encoder':
                 for i in range(1, unfreeze_num+1):
@@ -141,9 +141,10 @@ class PrototypeLearner(nn.Module):
         state_dicts['outputlayer_state_dict'] = self.classifier_layer.state_dict()
         torch.save(state_dicts, snapshot_path)
 
-    def load_model(self, path, unfreeze_num, device):
+    def load_model(self, path, device):
         # Load dictionary with BERT and MLP state_dicts
         checkpoint = torch.load(path, map_location=device)
+        unfreeze_num = checkpoint['unfreeze_num']
         # Overwrite last n BERT blocks, overwrite MLP params
         for i in range(1, unfreeze_num + 1):
             self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])

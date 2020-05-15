@@ -200,7 +200,7 @@ if __name__ == '__main__':
         tasks.append(OffensevalTask())
         for task in tasks:
             model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
-        model = model.load_model(args.resume_snapshot, args.unfreeze_num, device)
+        model.load_model(args.resume_snapshot, device)
         sampler = TaskSampler(tasks, method='random')
     else:
 
