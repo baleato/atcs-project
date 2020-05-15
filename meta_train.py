@@ -89,9 +89,6 @@ def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta
             task_model.to(device)
             task_model.train()
 
-            # new optimizer for every new task model
-            task_optimizer = AdamW(params=task_model.parameters(), lr=args.lr, correct_bias=False)
-
             # prepare support and query set
             batch = next(train_iter)
             support, query = split_episode(batch)
@@ -101,6 +98,9 @@ def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta
             prototypes = model.proto_net.calculate_centroids((proto_embeddings, support[1]), sampler.get_num_classes())
             W, b = task_model.calculate_output_params(prototypes.detach())
             task_model.initialize_classifier(W, b)
+
+            # new optimizer for every new task model
+            task_optimizer = optim.SGD(params=task_model.parameters(), lr=args.lr)
 
             # train some iterations on support set
             for update in range(num_updates):
