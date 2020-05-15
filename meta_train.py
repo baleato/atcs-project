@@ -10,7 +10,7 @@ import torch
 from transformers import BertTokenizer, AdamW
 
 from util import (
-    get_args, get_pytorch_device, get_model, load_model,
+    get_args_meta, get_pytorch_device, get_model, load_model,
     save_model, split_episode)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
@@ -20,7 +20,7 @@ from datetime import datetime
 import torch.optim as optim
 
 
-def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta_iters=1000, num_updates=5, meta_batch_size=1):
+def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta_iters=10000, num_updates=5, meta_batch_size=5):
     """
     We'll start with binary classifiers (2-way classification)
     for step in range(num_steps):
@@ -90,7 +90,7 @@ def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta
             task_model.train()
 
             # new optimizer for every new task model
-            task_optimizer = optim.SGD(params=task_model.parameters(), lr=args.lr)
+            task_optimizer = optim.SGD(params=task_model.parameters(), lr=args.inner_lr)
 
             # prepare support and query set
             batch = next(train_iter)
@@ -180,7 +180,7 @@ def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta
 
 
 if __name__ == '__main__':
-    args = get_args()
+    args = get_args_meta()
     for key, value in vars(args).items():
         print(key + ' : ' + str(value))
     device = get_pytorch_device(args)

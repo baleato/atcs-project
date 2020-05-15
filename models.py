@@ -106,8 +106,8 @@ class ProtoMAMLLearner(nn.Module):
         self.output_layer = nn.Linear(target_dim, 2)
 
     def calculate_output_params(self, prototypes):
-        W = nn.Parameter(2 * prototypes)
-        b = nn.Parameter(- torch.norm(prototypes, p=2, dim=1))
+        W = 2 * prototypes
+        b = - torch.norm(prototypes, p=2, dim=1)
         return W, b
 
     def initialize_classifier(self, W, b, hard_replace=False):

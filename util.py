@@ -196,3 +196,22 @@ def get_args():
     parser.add_argument('--lr', type=float, default=5e-5)
     args = parser.parse_args()
     return args
+
+def get_args_meta():
+    parser = ArgumentParser()
+    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--dataset_root', type=str,
+                        default=os.path.join(os.getcwd(), '.data'))
+    parser.add_argument('--save_path', type=str, default='results')
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--freeze_bert', default=False, action='store_true')
+    parser.add_argument('--unfreeze_num', type=int, default=2)
+    parser.add_argument('--resume_snapshot', type=str, default='')
+    parser.add_argument('--max_epochs', type=int, default=5)
+    parser.add_argument('--save_every', type=int, default=200)
+    parser.add_argument('--log_every', type=int, default=10)
+    parser.add_argument('--dp_ratio', type=int, default=0.2)
+    parser.add_argument('--lr', type=float, default=5e-5)
+    parser.add_argument('--inner_lr', type=float, default=1e-3)
+    args = parser.parse_args()
+    return args
