@@ -79,6 +79,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     for i in range(meta_iters):
         grads = []
         iteration_loss = 0
+        task_losses = {}
         # inner loop (sample different tasks)
         for task_sample in range(meta_batch_size):
             # clone original model
@@ -112,6 +113,9 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                 task_loss.backward()
                 task_optimizer.step()
                 task_optimizer_BERT.step()
+
+            # record task losses for logging
+            task_losses[sampler.get_name()] = task_loss.item()
 
             # trick to add prototypes back to computation graph
             W = prototypes + (W - prototypes).detach()
@@ -157,7 +161,9 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         iterations += 1
         if iterations % args.log_every == 0:
             iter_loss = iteration_loss / meta_batch_size
-            writer.add_scalar('{}/Loss/train'.format(sampler.get_name()), iter_loss, iterations)
+            writer.add_scalar('Meta_Average/Loss/train'.format(sampler.get_name()), iter_loss, iterations)
+            for t in tasks:
+                writer.add_scalar('{}/Loss/train'.format(t.get_name()), task_losses[t.get_name()], iterations)
             print(log_template.format(
                 str(timedelta(seconds=int(time.time() - start))),
                 sampler.get_name(),
@@ -167,13 +173,13 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         # saving redundant parameters
         # Save model checkpoints.
         if iterations % args.save_every == 0:
+            iter_loss = iteration_loss / meta_batch_size
             snapshot_prefix = os.path.join(args.save_path, 'snapshot')
             snapshot_path = (
                     snapshot_prefix +
-                    '_iter_{}_model.pt'
-            ).format(iterations)
-            # FIXME: save_model
-            # save_model(model, args.unfreeze_num, snapshot_path)
+                    '_iter_{}_loss_{}_model.pt'
+            ).format(iterations, iter_loss)
+            model.save_model(model, args.unfreeze_num, snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
