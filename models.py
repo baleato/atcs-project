@@ -160,17 +160,20 @@ class ProtoMAMLLearner(nn.Module):
         return out
 
     def save_model(self, unfreeze_num, snapshot_path):
-        # FIXME #2: also save optimizer state_dict, epochs, loss, etc
         # Copy instance of model to avoid mutation while training
-        bert_model_copy = deepcopy(self.encoder)
+        proto_net_encoder = deepcopy(self.proto_net.encoder)
+        proto_net_classifier = deepcopy(self.proto_net.classifier_layer)
+        classifier = deepcopy(self.output_layer)
 
         # Delete frozen layers from model_copy instance, save state_dicts
         state_dicts = {'unfreeze_num': unfreeze_num}
-        for module in self._modules:
+        for module in self.proto_net._modules:
             if module == 'encoder':
                 for i in range(1, unfreeze_num+1):
-                    state_dicts['bert_l_-{}'.format(i)] = bert_model_copy.encoder.layer[-i].state_dict()
-        state_dicts['outputlayer_state_dict'] = self.classifier_layer.state_dict()
+                    state_dicts['proto_net_bert_l_-{}'.format(i)] = proto_net_encoder.encoder.layer[-i].state_dict()
+        state_dicts['proto_net_classifier_state_dict'] = proto_net_classifier.state_dict()
+        state_dicts['output_layer_state_dict'] = classifier.state_dict()
+
         torch.save(state_dicts, snapshot_path)
 
     def load_model(self, path, device):
@@ -179,5 +182,6 @@ class ProtoMAMLLearner(nn.Module):
         unfreeze_num = checkpoint['unfreeze_num']
         # Overwrite last n BERT blocks, overwrite MLP params
         for i in range(1, unfreeze_num + 1):
-            self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])
-        self.classifier_layer.load_state_dict(checkpoint['outputlayer_state_dict'])
+            self.proto_net.encoder.encoder.layer[-i].load_state_dict(checkpoint['proto_net_bert_l_-{}'.format(i)])
+        self.proto_net.classifier_layer.load_state_dict(checkpoint['proto_net_classifier_state_dict'])
+        self.output_layer.load_state_dict(checkpoint['output_layer_state_dict'])
