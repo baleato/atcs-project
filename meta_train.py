@@ -94,7 +94,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
             # prepare support and query set
             batch = next(train_iter)
-            support, query = split_episode(batch)
+            support = batch[:3]
+            query = batch[3:]
 
             # setup output layer (via meta-model's prototype network)
             proto_embeddings = model.proto_net(support[0].to(device), attention_mask=support[2].to(device))

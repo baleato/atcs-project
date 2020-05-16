@@ -35,6 +35,7 @@ class Task(object):
     def get_num_classes(self):
         return self.num_classes
 
+
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
     def __init__(self, task_iters, method, custom_task_ratio=None):
@@ -140,7 +141,6 @@ class MixedTaskSamplerIter(TaskSamplerIter):
                 task_selection.append(task_sample)
             batch = []
             for i in range(len(task_sample)):
-                bla = [row[i] for row in task_selection]
                 field = torch.cat([row[i].long() for row in task_selection])
                 batch.append(field)
             self.batch_idx += 1

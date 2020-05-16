@@ -37,24 +37,52 @@ def bert_tokenizer(sentences, tokenizer, max_length=32):
     attention_masks = torch.cat(attention_masks, dim=0)
     return input_ids, attention_masks
 
+
+def get_label_indicies(labels):
+    """Expects labels as tensors and converts them to numpy itself"""
+    labels = labels.squeeze().numpy()
+    index_dict = {}
+    label_distribution = {}
+    unique_labels = np.unique(labels)
+    for i in unique_labels:
+        bin_labels = np.nonzero(labels == i)[0]
+        index_dict[i] = bin_labels
+        label_distribution[i] = bin_labels.size
+    return index_dict, label_distribution
+
+
+def split_dataset_to_support_and_query_sets(sentences, labels, masks):
+    # get indices per label
+    index_dict, label_distribution = get_label_indicies(labels)
+    supp_indices = []
+    query_indices = []
+    for label in index_dict.keys():
+        # if uneven number drop one example
+        if label_distribution[label] % 2 != 0:
+            index_dict[label] = index_dict[label][:-1]
+        split_index = int(len(index_dict[label])*0.5)
+        supp_indices.append(index_dict[label][:split_index])
+        query_indices.append(index_dict[label][split_index:])
+
+    # join and shuffle per label indices
+    supp_indices = np.hstack(supp_indices)
+    query_indices = np.hstack(query_indices)
+    shuffle_idx = np.random.choice(len(supp_indices), len(supp_indices), replace=False)
+    supp_indices = supp_indices[shuffle_idx]
+    query_indices = query_indices[shuffle_idx]
+
+    return \
+        (sentences[supp_indices], labels[supp_indices], masks[supp_indices]), \
+        (sentences[query_indices], labels[query_indices], masks[query_indices])
+
+
 class EpisodicSampler(torch.utils.data.Sampler):
     """Expects TensorDataset with labels as second argument"""
     def __init__(self, data_source):
         self.data_source = data_source
 
-    def get_label_indicies(self):
-        index_dict = {}
-        label_distribution = {}
-        labels = self.data_source.tensors[1].squeeze().numpy()
-        unique_labels = np.unique(labels)
-        for i in unique_labels:
-            bin_labels = np.nonzero(labels == i)[0]
-            index_dict[i] = bin_labels
-            label_distribution[i] = bin_labels.size
-        return index_dict, label_distribution
-
     def __iter__(self):
-        index_dict, label_distribution = self.get_label_indicies()
+        index_dict, label_distribution = get_label_indicies(self.data_source.tensors[1])
         label_sizes = label_distribution.values()
         max_label = max(label_sizes)
 
@@ -88,17 +116,24 @@ class EpisodicSampler(torch.utils.data.Sampler):
         return iter(alternating_labels)
 
     def __len__(self):
-        _, label_distribution = self.get_label_indicies()
+        _, label_distribution = get_label_indicies(self.data_source.tensors[1])
         label_sizes = label_distribution.values()
         num_labels = len(label_sizes)
         max_label = max(label_sizes)
         return num_labels * max_label
 
-def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True):
+
+def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True, supp_query_split=True):
     """ expects input_ids, labels, attention_masks to be tensors"""
 
-    # Load tensors into torch Dataset object
-    dataset = TensorDataset(input_ids, labels, attention_masks)
+    # split data into a support and query set with same label distribution and same labels at the same index
+    if supp_query_split:
+        supp, query = split_dataset_to_support_and_query_sets(input_ids, labels, attention_masks)
+        dataset = TensorDataset(supp[0], supp[1], supp[2], query[0], query[1], query[2])
+    else:
+        # Load tensors into torch Dataset object
+        dataset = TensorDataset(input_ids, labels, attention_masks)
+
     # Determine what sampling mode should be used
     if shuffle:
         if episodic:

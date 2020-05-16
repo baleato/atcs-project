@@ -96,7 +96,7 @@ class PrototypeLearner(nn.Module):
                 centroids.append(support[(support_labels == i).squeeze(-1)].mean(dim=0))
             else:
                 # fill centroids for missing labels with random normal noise
-                logging.debug('Warning: label not found -> random centroid')
+                logging.warning('Warning: label not found -> random centroid')
                 centroids.append(torch.randn(support.size()[1]).to(support.device))
         return torch.stack(centroids)
 
