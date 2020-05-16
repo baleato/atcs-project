@@ -13,8 +13,10 @@ import torch.nn as nn
 
 def k_shot_testing(model, episodes, test_iter, device, num_classes=2, num_updates=5, lr=5e-5):
     # Define optimizers and loss function
-    optimizer = AdamW(params=model.parameters(), lr=lr)
+    optimizer = optim.SGD(params=model.parameters(), lr=lr)
     cross_entropy = nn.CrossEntropyLoss()
+
+    model.eval()
 
     for episode in episodes:
         episode_accs = []
@@ -72,6 +74,7 @@ if __name__ == '__main__':
         RuntimeError('Unknown model type!')
     model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     model.to(device)
+    model.eval()
 
     # TODO replace with options of test datasets
     if args.task == 'OffenseEval':
