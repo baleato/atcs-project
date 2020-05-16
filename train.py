@@ -208,10 +208,11 @@ if __name__ == '__main__':
         model.to(device)
         print("Tasks")
         tasks = []
-        for emotion in SemEval18SingleEmotionTask.EMOTIONS:
-            tasks.append(SemEval18SingleEmotionTask(emotion))
-        tasks.append(SarcasmDetection())
-        tasks.append(OffensevalTask())
+        # for emotion in SemEval18SingleEmotionTask.EMOTIONS:
+        #     tasks.append(SemEval18SingleEmotionTask(emotion))
+        # tasks.append(SarcasmDetection())
+        # tasks.append(OffensevalTask())
+        tasks.append(SentimentAnalysis())
         for task in tasks:
             model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
         sampler = TaskSampler(tasks, method='random')

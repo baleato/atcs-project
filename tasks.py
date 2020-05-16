@@ -5,6 +5,7 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, NLLLoss
 from sklearn.metrics import jaccard_score, f1_score, accuracy_score
 import numpy as np
 import logging
+import sys
 
 from models import MLPClassifier
 from util import bert_tokenizer, make_dataloader
@@ -379,6 +380,52 @@ class SarcasmDetection(Task):
 
         sentences = df.sentence.values
         labels = np.where(df.label.values == 'SARCASM', 1, 0)
+
+        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
+        labels = torch.tensor(labels).unsqueeze(1)
+
+        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+
+    def get_classifier(self):
+        return self.classifier
+
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions, labels.type_as(predictions).reshape_as(predictions))
+
+    def calculate_accuracy(self, predictions, labels):
+        labels = labels.squeeze(-1)
+        pred_labels = torch.nn.functional.softmax(-predictions, dim=1).argmax(dim=1)  # according to equation 2 in the paper
+        #pred_labels = torch.sigmoid(predictions).round()
+        bin_labels = pred_labels == labels
+        correct = bin_labels.sum().float().item()
+        return correct / len(labels)
+
+
+class SentimentAnalysis(Task):
+    NAME = 'SentimentAnalysis'
+
+    def __init__(self, fn_tokenizer=bert_tokenizer):
+        self.classifier = MLPClassifier(target_dim=1)
+        self.criterion = BCEWithLogitsLoss()
+        self.fn_tokenizer = fn_tokenizer
+        self.num_classes = 2
+
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
+        """
+        Returns an iterable over the single
+        Args:
+            split: train/dev/test
+        Returns:
+            Iterable for the specified split
+        """
+        # current iter will have only two classes; we could extend it to have more
+        df = pd.read_csv('data/tweets_output.txt',header=None, sep='\t', names=['ID1', 'ID2', 'label','sentence'])
+        df = df[df.label != 'neutral']
+        df = df[df.label != 'objective']
+        df = df[df.label != 'objective-OR-neutral']
+
+        sentences = df.sentence.values
+        labels = np.where(df.label.values == 'positive', 1, 0)
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels).unsqueeze(1)

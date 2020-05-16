@@ -25,3 +25,12 @@ if [[ ! -f WaseemHovy.zip ]]; then
   curl -Lo WaseemHovy.zip 'https://drive.google.com/uc?export=download&id=1Dbvn7yJkS3Iurx92-7sfe0DsDgD18Dbf'
   unzip WaseemHovy.zip
 fi
+
+#TODO: properly store tweets_output.txt in folder sem_eval_2015
+# Sentiment Classification;
+mkdir -p sem_eval_2015
+if [[ -f sem_eval_2015/tweets_output.txt ]]; then
+  curl -Lo 'https://drive.google.com/uc?export=download&id=10G4Owb12txUo1HZqkwaxJ69-GHyWvPKN'
+  mv tweets_output.txt sem_eval_2015
+fi
+
