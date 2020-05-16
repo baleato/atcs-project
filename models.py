@@ -5,6 +5,7 @@ from transformers import BertModel
 from util import parse_nonlinearity
 import torch
 
+import logging
 
 class MetaLearner(nn.Module):
     def __init__(self, config):
@@ -95,7 +96,8 @@ class PrototypeLearner(nn.Module):
                 centroids.append(support[(support_labels == i).squeeze(-1)].mean(dim=0))
             else:
                 # fill centroids for missing labels with random normal noise
-                centroids.append(torch.randn(500))
+                logging.debug('Warning: label not found -> random centroid')
+                centroids.append(torch.randn(support.size()[1]).to(support.device))
         return torch.stack(centroids)
 
 

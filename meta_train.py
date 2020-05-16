@@ -20,7 +20,7 @@ from datetime import datetime
 import torch.optim as optim
 
 
-def meta_train(tasks, model, args, method='random', custom_task_ratio=None, meta_iters=10000, num_updates=5, meta_batch_size=5):
+def meta_train(tasks, model, args, device, method='random', custom_task_ratio=None, meta_iters=10000, num_updates=5, meta_batch_size=5):
     """
     We'll start with binary classifiers (2-way classification)
     for step in range(num_steps):

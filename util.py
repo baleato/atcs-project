@@ -65,20 +65,26 @@ class EpisodicSampler(torch.utils.data.Sampler):
             expand = int(np.floor(max_label/label_distribution[label]))
             if expand > 1:
                 expanded_indices = np.tile(indices, expand)
+                # shuffle the separate tiles to avoid same pattern over iterations
+                # while approximately preserving frequencies of examples
+                tile_size = len(indices)
+                shuffle_indices = []
+                for tile in range(expand):
+                    start = tile * tile_size
+                    index_choice = np.arange(start, start + tile_size)
+                    shuffle_indices.append(np.random.choice(index_choice, tile_size, replace=False))
+                expanded_indices = expanded_indices[np.hstack(shuffle_indices)]
             else:
                 expanded_indices = indices
+                np.random.shuffle(expanded_indices)
             # pad labels with less examples to exactly match the number of the most common label
             remainder = max_label % label_distribution[label]
             expanded_indices = np.hstack((expanded_indices, np.random.choice(indices, remainder, replace=False)))
-            np.random.shuffle(expanded_indices)
             balanced_labels.append(expanded_indices)
 
         # ensure alternating class labels
         alternating_labels = np.asarray(list(zip(*balanced_labels))).flatten()
-        # final_iterable = []
-        # for i in range(max_label):
-        #     for j in range(len(balanced_labels)):
-        #         final_iterable.append(balanced_labels[j][i])
+
         return iter(alternating_labels)
 
     def __len__(self):
@@ -105,7 +111,8 @@ def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=T
     # Create DataLoader object
     dataloader = DataLoader(dataset,
                             sampler=sampler,
-                            batch_size=batch_size
+                            batch_size=batch_size,
+                            drop_last=True
                             )
     return dataloader
 
