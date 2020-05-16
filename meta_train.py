@@ -172,8 +172,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                     snapshot_prefix +
                     '_iter_{}_model.pt'
             ).format(iterations)
-            # FIXME: save_model
-            # save_model(model, args.unfreeze_num, snapshot_path)
+            logging.debug('Saving model...')
+            model.save(args.unfreeze_num, snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:

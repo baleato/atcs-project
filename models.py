@@ -181,3 +181,30 @@ class ProtoMAMLLearner(nn.Module):
         proto_embedding = self.proto_net(inputs, attention_mask=attention_mask)
         out = self.output_layer(proto_embedding)
         return out
+
+    def save_model(self, unfreeze_num, snapshot_path):
+        # Copy instance of model to avoid mutation while training
+        proto_net_encoder = deepcopy(self.proto_net.encoder)
+        proto_net_classifier = deepcopy(self.proto_net.classifier_layer)
+        classifier = deepcopy(self.output_layer)
+
+        # Delete frozen layers from model_copy instance, save state_dicts
+        state_dicts = {'unfreeze_num': unfreeze_num}
+        for module in self.proto_net._modules:
+            if module == 'encoder':
+                for i in range(1, unfreeze_num+1):
+                    state_dicts['proto_net_bert_l_-{}'.format(i)] = proto_net_encoder.encoder.layer[-i].state_dict()
+        state_dicts['proto_net_classifier_state_dict'] = proto_net_classifier.state_dict()
+        state_dicts['output_layer_state_dict'] = classifier.state_dict()
+
+        torch.save(state_dicts, snapshot_path)
+
+    def load_model(self, path, device):
+        # Load dictionary with BERT and MLP state_dicts
+        checkpoint = torch.load(path, map_location=device)
+        unfreeze_num = checkpoint['unfreeze_num']
+        # Overwrite last n BERT blocks, overwrite MLP params
+        for i in range(1, unfreeze_num + 1):
+            self.proto_net.encoder.encoder.layer[-i].load_state_dict(checkpoint['proto_net_bert_l_-{}'.format(i)])
+        self.proto_net.classifier_layer.load_state_dict(checkpoint['proto_net_classifier_state_dict'])
+        self.output_layer.load_state_dict(checkpoint['output_layer_state_dict'])
