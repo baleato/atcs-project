@@ -6,6 +6,7 @@ from util import parse_nonlinearity
 import torch
 from copy import deepcopy
 
+import logging
 
 class MetaLearner(nn.Module):
     def __init__(self, config):
@@ -62,10 +63,12 @@ class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
     """
-    def __init__(self, input_dim=768, target_dim=2, hidden_dims=[], nonlinearity=None, dropout=0.0):
+    def __init__(self, input_dim=768, target_dim=2, hidden_dims=None, nonlinearity=None, dropout=0.0):
         super(MLPClassifier, self).__init__()
 
         # append input and output dimension to layer list
+        if hidden_dims is None:
+            hidden_dims = []
         hidden_dims.insert(0, input_dim)
         hidden_dims.append(target_dim)
 
@@ -92,21 +95,17 @@ class MLPClassifier(nn.Module):
 
 
 class PrototypeLearner(nn.Module):
-    def __init__(self, config, tasks):
+    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
         super(PrototypeLearner, self).__init__()
+        if hidden_dims is None:
+            hidden_dims = []
         self.encoder = BertModel.from_pretrained("bert-base-uncased")
         self.encoder.requires_grad_(False)
         for block in self.encoder.encoder.layer[-(config.unfreeze_num):]:
             for params in block.parameters():
                 params.requires_grad = True
-        bert_out = 768
-        embedding_dim = 500
-        # TODO add parameters to make layers maybe
 
-        self.classifier_layer = nn.Sequential(
-            nn.Linear(bert_out, embedding_dim),
-            nn.ReLU()
-        )
+        self.classifier_layer = MLPClassifier(input_dim, target_dim, hidden_dims, nonlinearity, dropout)
 
 
     def forward(self, inputs, attention_mask=None):
@@ -118,14 +117,17 @@ class PrototypeLearner(nn.Module):
 
     def calculate_centroids(self, support, num_classes):
         support, support_labels = support
-        centroids = torch.zeros((num_classes, 500))
         # compute centroids on support set according to equation 1 in the paper
         unique_labels = support_labels.unique()
-
-        for label in unique_labels:
-            centroids[label] = support[(support_labels == label).squeeze(-1)].mean(dim=0)
-
-        return centroids
+        centroids = []
+        for i in range(num_classes):
+            if i in unique_labels:
+                centroids.append(support[(support_labels == i).squeeze(-1)].mean(dim=0))
+            else:
+                # fill centroids for missing labels with random normal noise
+                logging.warning('Warning: label not found -> random centroid')
+                centroids.append(torch.randn(support.size()[1]).to(support.device))
+        return torch.stack(centroids)
 
     def save_model(self, unfreeze_num, snapshot_path):
         # FIXME #2: also save optimizer state_dict, epochs, loss, etc
@@ -149,3 +151,60 @@ class PrototypeLearner(nn.Module):
         for i in range(1, unfreeze_num + 1):
             self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])
         self.classifier_layer.load_state_dict(checkpoint['outputlayer_state_dict'])
+
+
+class ProtoMAMLLearner(nn.Module):
+    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
+        super(ProtoMAMLLearner, self).__init__()
+        self.proto_net = PrototypeLearner(config, input_dim, target_dim, hidden_dims, nonlinearity, dropout)
+        self.output_layer = nn.Linear(target_dim, 2)
+
+    def calculate_output_params(self, prototypes):
+        W = 2 * prototypes
+        b = - torch.norm(prototypes, p=2, dim=1)
+        return W, b
+
+    def initialize_classifier(self, W, b, hard_replace=False):
+        # hard replace completely deletes the Parameter from memory
+        # if the parameter was specified in the optimizer it needs to be replaced with a parameter
+        # before calling optimizer.step()
+        if hard_replace:
+            del self.output_layer.weight
+            del self.output_layer.bias
+            self.output_layer.weight = W
+            self.output_layer.bias = b
+        else:
+            self.output_layer.weight.data = W
+            self.output_layer.bias.data = b
+
+    def forward(self, inputs, attention_mask=None):
+        proto_embedding = self.proto_net(inputs, attention_mask=attention_mask)
+        out = self.output_layer(proto_embedding)
+        return out
+
+    def save_model(self, unfreeze_num, snapshot_path):
+        # Copy instance of model to avoid mutation while training
+        proto_net_encoder = deepcopy(self.proto_net.encoder)
+        proto_net_classifier = deepcopy(self.proto_net.classifier_layer)
+        classifier = deepcopy(self.output_layer)
+
+        # Delete frozen layers from model_copy instance, save state_dicts
+        state_dicts = {'unfreeze_num': unfreeze_num}
+        for module in self.proto_net._modules:
+            if module == 'encoder':
+                for i in range(1, unfreeze_num+1):
+                    state_dicts['proto_net_bert_l_-{}'.format(i)] = proto_net_encoder.encoder.layer[-i].state_dict()
+        state_dicts['proto_net_classifier_state_dict'] = proto_net_classifier.state_dict()
+        state_dicts['output_layer_state_dict'] = classifier.state_dict()
+
+        torch.save(state_dicts, snapshot_path)
+
+    def load_model(self, path, device):
+        # Load dictionary with BERT and MLP state_dicts
+        checkpoint = torch.load(path, map_location=device)
+        unfreeze_num = checkpoint['unfreeze_num']
+        # Overwrite last n BERT blocks, overwrite MLP params
+        for i in range(1, unfreeze_num + 1):
+            self.proto_net.encoder.encoder.layer[-i].load_state_dict(checkpoint['proto_net_bert_l_-{}'.format(i)])
+        self.proto_net.classifier_layer.load_state_dict(checkpoint['proto_net_classifier_state_dict'])
+        self.output_layer.load_state_dict(checkpoint['output_layer_state_dict'])

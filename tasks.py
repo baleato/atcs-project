@@ -35,6 +35,7 @@ class Task(object):
     def get_num_classes(self):
         return self.num_classes
 
+
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
     def __init__(self, task_iters, method, custom_task_ratio=None):
@@ -42,7 +43,7 @@ class TaskSamplerIter(object):
         self.task_iters = [iter(ti) for ti in task_iters]
         self.method = method
         if custom_task_ratio is None:
-            task_ratio = [math.sqrt(len(task_iter)) for task_iter in task_iters]
+            task_ratio = [math.sqrt(task_iter.dataset.tensors[0].shape[0]) for task_iter in task_iters]
         else:
             task_ratio = custom_task_ratio
         self.task_probs = [tr/sum(task_ratio) for tr in task_ratio]
@@ -79,7 +80,7 @@ class TaskSamplerIter(object):
 
             self.task_index = task_index
             self.batch_idx += 1
-            if self.batch_idx > self.num_total_batches:
+            if self.batch_idx == self.num_total_batches+1:
                 logging.warning(
                     (
                         'Number of batches exceeds the expected amount. ' +
@@ -127,7 +128,6 @@ class MixedTaskSamplerIter(TaskSamplerIter):
                 task_selection.append(task_sample)
             batch = []
             for i in range(len(task_sample)):
-                bla = [row[i] for row in task_selection]
                 field = torch.cat([row[i].long() for row in task_selection])
                 batch.append(field)
             self.batch_idx += 1
@@ -183,6 +183,9 @@ class TaskSampler(Task):
         task_index = self._task_sampler_iter.get_task_index()
         return self.tasks[task_index]
 
+    def get_task(self, task_index):
+        return self.tasks[task_index]
+
     def get_classifier(self):
         return self._get_current_tasks.get_classifier()
 
@@ -195,6 +198,8 @@ class TaskSampler(Task):
     def get_name(self):
         return self._get_current_tasks().get_name()
 
+    def get_num_classes(self):
+        return self._get_current_tasks().num_classes
 
 class SemEval18Task(Task):
     NAME = 'SemEval18'
@@ -208,7 +213,8 @@ class SemEval18Task(Task):
             'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
         ]
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = MLPClassifier(target_dim=len(self.emotions))
+        self.num_classes = len(self.emotions)
+        self.classifier = MLPClassifier(target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
@@ -299,6 +305,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         gold_labels = torch.flatten(labels)
         n_correct = (torch.max(predictions, 1)[1].view(gold_labels.size()) == gold_labels).sum().item()
         n_total = len(gold_labels)
+        # TODO agree on consistent format of accuracy (in percent or decimal)
         return 100. * n_correct/n_total
 
     def get_name(self):
