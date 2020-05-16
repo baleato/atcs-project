@@ -4,6 +4,7 @@ import torch.nn as nn
 from transformers import BertModel
 from util import parse_nonlinearity
 import torch
+from copy import deepcopy
 
 import logging
 
@@ -28,6 +29,34 @@ class MetaLearner(nn.Module):
     def add_task_classifier(self, task_name, classifier):
         assert issubclass(type(classifier), nn.Module)
         self.add_module('task_{}'.format(task_name), classifier)
+
+    def save_model(self, unfreeze_num, snapshot_path):
+        # FIXME #2: also save optimizer state_dict, epochs, loss, etc
+        # Copy instance of model to avoid mutation while training
+        bert_model_copy = deepcopy(self.encoder)
+
+        # Delete frozen layers from model_copy instance, save state_dicts
+        state_dicts = {'unfreeze_num': unfreeze_num}
+        for module in self._modules:
+            if module == 'encoder':
+                for i in range(1, unfreeze_num+1):
+                    state_dicts['bert_l_-{}'.format(i)] = bert_model_copy.encoder.layer[-i].state_dict()
+            if 'task' in module:
+                state_dicts[module+'_state_dict'] = self._modules[module].state_dict()
+        torch.save(state_dicts, snapshot_path)
+
+
+    def load_model(self, path, device):
+        # Load dictionary with BERT and MLP state_dicts
+        checkpoint = torch.load(path, map_location=device)
+        unfreeze_num = checkpoint['unfreeze_num']
+        # Overwrite last n BERT blocks, overwrite MLP params
+        for i in range(1, unfreeze_num + 1):
+            self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])
+        for module in self._modules:
+            if 'task' in module:
+                self._modules[module].load_state_dict(checkpoint[module+'_state_dict'])
+
 
 
 class MLPClassifier(nn.Module):
@@ -86,7 +115,7 @@ class PrototypeLearner(nn.Module):
 
         return out
 
-    def calculate_centroids(self, support, num_classes): #, query_labels#, train_iter, task):
+    def calculate_centroids(self, support, num_classes):
         support, support_labels = support
         # compute centroids on support set according to equation 1 in the paper
         unique_labels = support_labels.unique()
@@ -129,3 +158,26 @@ class ProtoMAMLLearner(nn.Module):
         proto_embedding = self.proto_net(inputs, attention_mask=attention_mask)
         out = self.output_layer(proto_embedding)
         return out
+
+    def save_model(self, unfreeze_num, snapshot_path):
+        # FIXME #2: also save optimizer state_dict, epochs, loss, etc
+        # Copy instance of model to avoid mutation while training
+        bert_model_copy = deepcopy(self.encoder)
+
+        # Delete frozen layers from model_copy instance, save state_dicts
+        state_dicts = {'unfreeze_num': unfreeze_num}
+        for module in self._modules:
+            if module == 'encoder':
+                for i in range(1, unfreeze_num+1):
+                    state_dicts['bert_l_-{}'.format(i)] = bert_model_copy.encoder.layer[-i].state_dict()
+        state_dicts['outputlayer_state_dict'] = self.classifier_layer.state_dict()
+        torch.save(state_dicts, snapshot_path)
+
+    def load_model(self, path, device):
+        # Load dictionary with BERT and MLP state_dicts
+        checkpoint = torch.load(path, map_location=device)
+        unfreeze_num = checkpoint['unfreeze_num']
+        # Overwrite last n BERT blocks, overwrite MLP params
+        for i in range(1, unfreeze_num + 1):
+            self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])
+        self.classifier_layer.load_state_dict(checkpoint['outputlayer_state_dict'])

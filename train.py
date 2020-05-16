@@ -95,7 +95,7 @@ def train(tasks, model, args, device):
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
                     # FIXME: save_model
-                    # save_model(model, args.unfreeze_num, snapshot_path)
+                    model.save_model(args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
@@ -144,7 +144,7 @@ def train(tasks, model, args, device):
                         '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                     ).format(dev_acc, dev_loss, iterations)
                 # FIXME: save_model
-                # save_model(model, args.unfreeze_num, snapshot_path)
+                model.save_model(args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -162,7 +162,16 @@ if __name__ == '__main__':
     if args.resume_snapshot:
         print("Loading models from snapshot")
         model = MetaLearner(args)
-        model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
+        print("Tasks")
+        tasks = []
+        for emotion in SemEval18SingleEmotionTask.EMOTIONS:
+            tasks.append(SemEval18SingleEmotionTask(emotion))
+        tasks.append(SarcasmDetection())
+        tasks.append(OffensevalTask())
+        for task in tasks:
+            model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
+        model.load_model(args.resume_snapshot, device)
+        sampler = TaskSampler(tasks, method='random')
     else:
 
         model = MetaLearner(args)
