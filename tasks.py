@@ -60,19 +60,6 @@ class TaskSamplerIter(object):
         else:
             return np.random.choice(len(self.task_iters), p=self.task_probs)
 
-    def get_task_batch(self, task_index):
-        task_iter = self.task_iters[task_index]
-        try:
-            batch = next(task_iter)
-        except StopIteration:
-            # Note that depending on how next it's implemented it could also
-            # return an empty list instead of raising StopIteration
-
-            # if iterator is empty initialize new iterator from original dataloader
-            task_iter = iter(self.original_dataloaders[task_index])
-            batch = next(task_iter)
-        return batch
-
     def __iter__(self):
         return self
 
