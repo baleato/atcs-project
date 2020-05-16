@@ -11,6 +11,7 @@ from util import get_args_meta, get_pytorch_device, load_model
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import ProtoMAMLLearner
+from itertools import chain
 
 from datetime import datetime
 import torch.optim as optim
@@ -86,7 +87,10 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             task_model.train()
 
             # new optimizer for every new task model
-            task_optimizer = optim.SGD(params=task_model.parameters(), lr=args.inner_lr)
+            task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.parameters(), lr=args.lr)
+            task_optimizer = optim.SGD(params=chain(task_model.proto_net.classifier_layer.parameters(),
+                                                    task_model.output_layer.parameters()),
+                                       lr=args.inner_lr)
 
             # prepare support and query set
             batch = next(train_iter)
@@ -101,11 +105,13 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
             # train some iterations on support set
             for update in range(num_updates):
+                task_optimizer_BERT.zero_grad()
                 task_optimizer.zero_grad()
                 predictions = task_model(support[0].to(device), attention_mask=support[2].to(device))
                 task_loss = cross_entropy(predictions, support[1].long().squeeze().to(device))
                 task_loss.backward()
                 task_optimizer.step()
+                task_optimizer_BERT.step()
 
             # trick to add prototypes back to computation graph
             W = prototypes + (W - prototypes).detach()

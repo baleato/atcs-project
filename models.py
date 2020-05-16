@@ -129,6 +129,29 @@ class PrototypeLearner(nn.Module):
                 centroids.append(torch.randn(support.size()[1]).to(support.device))
         return torch.stack(centroids)
 
+    def save_model(self, unfreeze_num, snapshot_path):
+        # FIXME #2: also save optimizer state_dict, epochs, loss, etc
+        # Copy instance of model to avoid mutation while training
+        bert_model_copy = deepcopy(self.encoder)
+
+        # Delete frozen layers from model_copy instance, save state_dicts
+        state_dicts = {'unfreeze_num': unfreeze_num}
+        for module in self._modules:
+            if module == 'encoder':
+                for i in range(1, unfreeze_num+1):
+                    state_dicts['bert_l_-{}'.format(i)] = bert_model_copy.encoder.layer[-i].state_dict()
+        state_dicts['outputlayer_state_dict'] = self.classifier_layer.state_dict()
+        torch.save(state_dicts, snapshot_path)
+
+    def load_model(self, path, device):
+        # Load dictionary with BERT and MLP state_dicts
+        checkpoint = torch.load(path, map_location=device)
+        unfreeze_num = checkpoint['unfreeze_num']
+        # Overwrite last n BERT blocks, overwrite MLP params
+        for i in range(1, unfreeze_num + 1):
+            self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])
+        self.classifier_layer.load_state_dict(checkpoint['outputlayer_state_dict'])
+
 
 class ProtoMAMLLearner(nn.Module):
     def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
