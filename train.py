@@ -67,22 +67,22 @@ def train(tasks, model, args, device):
 
         # Feed sentences into BERT instance, compute loss, perform backward
         # pass, update weights.
-        predictions = model(sentences, task.get_name(), attention_mask=attention_masks)
+        predictions = model(sentences, sampler.get_name(), attention_mask=attention_masks)
 
-        loss = task.get_loss(predictions, labels.to(device))
+        loss = sampler.get_loss(predictions, labels.to(device))
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
         iterations += 1
         if iterations % args.log_every == 0:
-            acc = task.calculate_accuracy(predictions, labels.to(device))
+            acc = sampler.calculate_accuracy(predictions, labels.to(device))
             iter_loss = running_loss / args.log_every
-            writer.add_scalar('{}/Accuracy/train'.format(task.get_name()), acc, iterations)
-            writer.add_scalar('{}/Loss/train'.format(task.get_name()), iter_loss, iterations)
+            writer.add_scalar('{}/Accuracy/train'.format(sampler.get_name()), acc, iterations)
+            writer.add_scalar('{}/Loss/train'.format(sampler.get_name()), iter_loss, iterations)
             print(log_template.format(
                 str(timedelta(seconds=int(time.time() - start))),
-                task.get_name(),
+                sampler.get_name(),
                 iterations,
                 i+1, train_iter_len,
                 (i+1) / train_iter_len * 100,
@@ -92,7 +92,7 @@ def train(tasks, model, args, device):
         # saving redundant parameters
         # Save model checkpoints.
         if iterations % args.save_every == 0:
-            acc = task.calculate_accuracy(predictions, labels.to(device))
+            acc = sampler.calculate_accuracy(predictions, labels.to(device))
             snapshot_prefix = os.path.join(args.save_path, 'snapshot')
             snapshot_path = (
                     snapshot_prefix +
@@ -107,46 +107,51 @@ def train(tasks, model, args, device):
 
         if iterations % args.eval_every == 0:
             # ============================ EVALUATION ============================
-            dev_iter = task.get_iter('dev', tokenizer, batch_size=args.batch_size)
-            dev_iter_len = len(dev_iter)
-            model.eval()
+            dev_task_accs = []
+            for task in sampler.tasks:
+                dev_iter = task.get_iter('dev', tokenizer, batch_size=args.batch_size)
+                dev_iter_len = len(dev_iter)
+                model.eval()
 
-            # calculate accuracy on validation set
-            sum_dev_loss, sum_dev_acc = 0, 0
-            with torch.no_grad():
-                for dev_batch in dev_iter:
-                    sentences = dev_batch[0].to(device)
-                    labels = dev_batch[1]
-                    attention_masks = dev_batch[2].to(device)
+                # calculate accuracy on validation set
+                sum_dev_loss, sum_dev_acc = 0, 0
+                with torch.no_grad():
+                    for dev_batch in dev_iter:
+                        sentences = dev_batch[0].to(device)
+                        labels = dev_batch[1]
+                        attention_masks = dev_batch[2].to(device)
 
-                    outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
-                    # Loss
-                    batch_dev_loss = task.get_loss(outputs, labels.to(device))
-                    sum_dev_loss += batch_dev_loss.item()
-                    # Accuracy
-                    acc = task.calculate_accuracy(outputs, labels.to(device))
-                    sum_dev_acc += acc
-            dev_acc = sum_dev_acc / dev_iter_len
-            dev_loss = sum_dev_loss / dev_iter_len
+                        outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
+                        # Loss
+                        batch_dev_loss = task.get_loss(outputs, labels.to(device))
+                        sum_dev_loss += batch_dev_loss.item()
+                        # Accuracy
+                        acc = task.calculate_accuracy(outputs, labels.to(device))
+                        sum_dev_acc += acc
+                dev_acc = sum_dev_acc / dev_iter_len
+                dev_loss = sum_dev_loss / dev_iter_len
 
-            print(dev_log_template.format(
-                    str(timedelta(seconds=int(time.time() - start))),
-                    task.get_name(),
-                    iterations,
-                    i+1, train_iter_len,
-                    (i+1) / train_iter_len * 100,
-                    dev_loss, dev_acc))
+                print(dev_log_template.format(
+                        str(timedelta(seconds=int(time.time() - start))),
+                        task.get_name(),
+                        iterations,
+                        i+1, train_iter_len,
+                        (i+1) / train_iter_len * 100,
+                        dev_loss, dev_acc))
 
-            writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
-            writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
+                writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
+                writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
+                dev_task_accs.append(dev_acc)
 
-            if best_dev_acc < dev_acc:
-                best_dev_acc = dev_acc
+            mean_dev_acc = sum(dev_task_accs) / len(dev_task_accs)
+
+            if best_dev_acc < mean_dev_acc:
+                best_dev_acc = mean_dev_acc
                 snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
                 snapshot_path = (
                         snapshot_prefix +
-                        '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-                    ).format(dev_acc, dev_loss, iterations)
+                        '_acc_{:.4f}_iter_{}_model.pt'
+                    ).format(mean_dev_acc, iterations)
                 # FIXME: save_model
                 model.save_model(args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
