@@ -43,7 +43,7 @@ class TaskSamplerIter(object):
         self.task_iters = [iter(ti) for ti in task_iters]
         self.method = method
         if custom_task_ratio is None:
-            task_ratio = [math.sqrt(len(task_iter)) for task_iter in task_iters]
+            task_ratio = [math.sqrt(task_iter.dataset.tensors[0].shape[0]) for task_iter in task_iters]
         else:
             task_ratio = custom_task_ratio
         self.task_probs = [tr/sum(task_ratio) for tr in task_ratio]
