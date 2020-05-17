@@ -81,6 +81,9 @@ def train(tasks, model, args, device):
     print('Loading Tokenizer..')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
+    model.to(device)
+    model.train()
+
     best_dev_acc = -1
     iterations, running_loss = 0, 0.0
     for epoch in range(args.max_epochs):
@@ -103,11 +106,11 @@ def train(tasks, model, args, device):
                 # divide into support and query set
                 split_index = int(3 * (sentences.shape[0] / 4)) # splits into 3/4 support set and 1/4 query set
                 indices = torch.randperm(sentences.shape[0])
-                support = sentences[indices[:split_index]]
-                support_mask = attention_masks[indices[:split_index]]
+                support = sentences[indices[:split_index]].to(device)
+                support_mask = attention_masks[indices[:split_index]].to(device)
                 support_labels = labels[indices[:split_index]]
-                query = sentences[split_index:]
-                query_mask = attention_masks[split_index:]
+                query = sentences[split_index:].to(device)
+                query_mask = attention_masks[split_index:].to(device)
                 query_labels = labels[split_index:]
 
                 # Feed sentences into BERT instance, compute loss, perform backward
@@ -230,7 +233,7 @@ if __name__ == '__main__':
         #    tasks.append(SemEval18SingleEmotionTask(emotion))
         tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
-        model = PrototypeLearner(args, tasks)
+        model = PrototypeLearner(args, hidden_dims=[500])
         sampler = TaskSampler(tasks, method='random')
     results = train([sampler], model, args, device)
 

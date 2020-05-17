@@ -3,4 +3,6 @@ tensorboard
 tokenizers
 torch
 transformers
+numpy
+scipy==1.1.0
 pandas
