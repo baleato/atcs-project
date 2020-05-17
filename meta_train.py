@@ -68,7 +68,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     print('done.')
 
-    sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio)
+    sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio, supp_query_split=True)
     task_model = type(model)(args, hidden_dims=[500])
 
     iterations = 0

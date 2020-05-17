@@ -99,57 +99,6 @@ class TaskSamplerIter(object):
         return self.num_total_batches
 
 
-class MixedTaskSamplerIter(TaskSamplerIter):
-    """Iterator class used by TaskSampler.
-    Batch consists of multiple tasks.
-    Returns batch (list) of length 4 with
-    batch[0]: token ids, batch[1]: labels, batch[2]: attention_masks, batch[4]: task ids
-    """
-    def __init__(self, task_iters, batch_size, method, custom_task_ratio=None):
-        super(MixedTaskSamplerIter, self).__init__(task_iters, method, custom_task_ratio)
-        self.num_total_batches = int(np.ceil(self.num_total_batches/batch_size))
-        self.batch_size = batch_size
-
-    def __next__(self):
-        if self.task_iters:
-            task_selection = []
-            for b in range(self.batch_size):
-                self.task_index = self.sample_next_task()
-                task_iter = self.task_iters[self.task_index]
-                try:
-                    task_sample = next(task_iter)
-                    # ensure consistent label size
-                    task_sample[1] = task_sample[1].view(1)
-                    task_sample.append(torch.tensor(self.task_index).view(1))
-                except StopIteration:
-                    # Note that depending on how next it's implemented it could also
-                    # return an empty list instead of raising StopIteration
-
-                    # if iterator is empty initialize new iterator from original dataloader
-                    task_iter = iter(self.original_dataloaders[self.task_index])
-                    task_sample = next(task_iter)
-                    task_sample[1] = task_sample[1].view(1)
-                    task_sample.append(torch.tensor(self.task_index).view(1))
-                task_selection.append(task_sample)
-            batch = []
-            for i in range(len(task_sample)):
-                field = torch.cat([row[i].long() for row in task_selection])
-                batch.append(field)
-            self.batch_idx += 1
-            if self.batch_idx > self.num_total_batches:
-                logging.warning(
-                    (
-                        'Number of batches exceeds the expected amount. ' +
-                        'Expected: {}; current batch idx: {}'
-                    ).format(self.num_total_batches, self.batch_idx))
-            return batch
-        else:
-            raise StopIteration
-
-    def __len__(self):
-        return self.num_total_batches
-
-
 class TaskSampler(Task):
     r"""This sampler is implemented as a task.
 
@@ -163,24 +112,20 @@ class TaskSampler(Task):
             ...
     """
     # Improvements on task sampler:
-    #   - [X] Mix different task examples within a batch
     #   - [X] Allow to specify sampling factors per task. For instance: [1, 2, 0.5, 0.5]
     #     will sample task 1 (25%), task 2 (50%) and task 3 and 4 (12.5%) each.
     #   - [X] Mind imbalance data (-> sample freq. sqrt of dataset length)
-    def __init__(self, tasks, method='sequential', custom_task_ratio=None, mixed_batch=False):
+    def __init__(self, tasks, method='sequential', custom_task_ratio=None, supp_query_split=False):
         assert len(tasks) > 0
         self.tasks = tasks
         self.method = method
         self.custom_task_ratio = custom_task_ratio
-        self.mixed_batch = mixed_batch
+        self.supp_query_split = supp_query_split
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
-        if self.mixed_batch:
-            task_iters = [task.get_iter(split, tokenizer, 1, shuffle, random_state, max_length) for task in self.tasks]
-            self._task_sampler_iter = MixedTaskSamplerIter(task_iters, batch_size, self.method, self.custom_task_ratio)
-        else:
-            task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state) for task in self.tasks]
-            self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
+        task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state,
+                                    supp_query_split=self.supp_query_split) for task in self.tasks]
+        self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
 
         return self._task_sampler_iter
 
@@ -222,7 +167,7 @@ class SemEval18Task(Task):
         self.classifier = MLPClassifier(hidden_dims=[512], target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
 
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32, supp_query_split=False):
         """
         Returns an iterable over the single
         Args:
@@ -239,7 +184,7 @@ class SemEval18Task(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)
 
-        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
 
     def get_classifier(self):
         return self.classifier
@@ -306,7 +251,7 @@ class OffensevalTask(Task):
     # TODO: allow for
     # train_iter = task.get_iter('train')
     # len(train_iter) -> returns the number of batches
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
         if split == 'test' or split == 'dev':
             data_df = pd.read_csv('data/OLIDv1.0/testset-levela.tsv', sep='\t')
@@ -326,7 +271,7 @@ class OffensevalTask(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)
 
-        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
 
     def get_classifier(self):
         return self.classifier
@@ -351,7 +296,7 @@ class SarcasmDetection(Task):
 
 
 
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
         Returns an iterable over the single
         Args:
@@ -373,7 +318,7 @@ class SarcasmDetection(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)#.unsqueeze(1)
 
-        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
 
     def get_classifier(self):
         return self.classifier
