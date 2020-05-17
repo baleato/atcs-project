@@ -63,7 +63,7 @@ class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
     """
-    
+
     def __init__(self, input_dim=768, target_dim=2, hidden_dims=[], nonlinearity='ReLU', dropout=0.0):
         super(MLPClassifier, self).__init__()
 
