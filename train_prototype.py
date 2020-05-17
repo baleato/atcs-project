@@ -61,7 +61,7 @@ def train(tasks, model, args, device):
     # Define logging
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
-        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
+        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
 
     header = '      Time                     Task  Iteration   Progress  %Epoch       ' + \
              'Loss   Dev/Loss     Accuracy      Dev/Acc'
@@ -82,7 +82,7 @@ def train(tasks, model, args, device):
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
     # initialize task sampler
-    sampler = TaskSampler(tasks, method='random')
+    sampler = TaskSampler(tasks, method='random', supp_query_split=True)
 
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     train_iter_len = len(train_iter)
