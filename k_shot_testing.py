@@ -72,8 +72,7 @@ if __name__ == '__main__':
         model = ProtoMAMLLearner(args)
     else:
         RuntimeError('Unknown model type!')
-    model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
-    model.to(device)
+    model.load_model(args.model_path, device)
     model.eval()
 
     # TODO replace with options of test datasets

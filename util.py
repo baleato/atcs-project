@@ -206,7 +206,7 @@ def get_test_args():
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--freeze_bert', default=False, action='store_true')
     parser.add_argument('--unfreeze_num', type=int, default=2)
-    parser.add_argument('--resume_snapshot', type=str, default='')
+    parser.add_argument('--model_path', type=str, default='')
     parser.add_argument('--model', type=str, default='ProtoMAML')
     parser.add_argument('--task', type=str, default='OffenseEval')
     parser.add_argument('--k', type=int, default=4)
