@@ -43,7 +43,12 @@ class TaskSamplerIter(object):
         self.task_iters = [iter(ti) for ti in task_iters]
         self.method = method
         if custom_task_ratio is None:
-            task_ratio = [math.sqrt(task_iter.dataset.tensors[0].shape[0]) for task_iter in task_iters]
+            # Using the square root of the dataset size is a strategy that yields good results.
+            # Additionally, we divide by the number of times the same dataset is used in
+            # different tasks. This aims to attenuate bias towards the data distribution of
+            # a particular dataset.
+            dataset_ids = [task_iter.dataset.id for task_iter in task_iters]
+            task_ratio = [math.sqrt(task_iter.dataset.tensors[0].shape[0])/dataset_ids.count(task_iter.dataset.id) for task_iter in task_iters]
         else:
             task_ratio = custom_task_ratio
         self.task_probs = [tr/sum(task_ratio) for tr in task_ratio]
@@ -234,7 +239,7 @@ class SemEval18Task(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)
 
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
@@ -321,7 +326,7 @@ class OffensevalTask(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)
 
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
@@ -368,7 +373,7 @@ class SarcasmDetection(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)#.unsqueeze(1)
 
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
