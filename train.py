@@ -26,11 +26,11 @@ def train(tasks, model, args, device):
     writer = SummaryWriter(
         os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
 
-    header = '      Time                     Task   Epoch  Iteration   Progress  %Epoch       ' + \
+    header = '      Time                     Task  Iteration   Progress  %Epoch       ' + \
         'Loss   Dev/Loss     Accuracy      Dev/Acc'
-    log_template = '{:>10} {:>25} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
+    log_template = '{:>10} {:>25} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
         '{:10.6f}              {:10.6f}'
-    dev_log_template = '{:>10} {:>25} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}%' + \
+    dev_log_template = '{:>10} {:>25} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}%' + \
         '            {:10.6f}              {:12.6f}'
 
     print(header)
@@ -43,106 +43,115 @@ def train(tasks, model, args, device):
     print('Loading Tokenizer..')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
+    # initialize task sampler
+    sampler = TaskSampler(tasks, method='random')
+
+    # Iterate over the data
+    train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
+    train_iter_len = len(train_iter)
+    model.train()
+
     best_dev_acc = -1
     iterations, running_loss = 0, 0.0
-    for epoch in range(args.max_epochs):
-        for task in tasks:
-            # Iterate over the data
-            train_iter = task.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
-            train_iter_len = len(train_iter)
-            model.train()
-            for batch_idx, batch in enumerate(train_iter):
-                # Reset .grad attributes for weights
-                optimizer.zero_grad()
+    for i in range(args.num_iterations):
 
-                # Extract the sentence_ids and target vector, send sentences to GPU
-                sentences = batch[0].to(device)
-                labels = batch[1]
-                attention_masks = batch[2].to(device)
+        batch = next(train_iter)
 
-                # Feed sentences into BERT instance, compute loss, perform backward
-                # pass, update weights.
-                predictions = model(sentences, task.get_name(), attention_mask=attention_masks)
+        # Reset .grad attributes for weights
+        optimizer.zero_grad()
 
-                loss = task.get_loss(predictions, labels.to(device))
-                loss.backward()
-                optimizer.step()
+        # Extract the sentence_ids and target vector, send sentences to GPU
+        sentences = batch[0].to(device)
+        labels = batch[1]
+        attention_masks = batch[2].to(device)
 
-                running_loss += loss.item()
-                iterations += 1
-                if iterations % args.log_every == 0:
-                    acc = task.calculate_accuracy(predictions, labels.to(device))
-                    iter_loss = running_loss / args.log_every
-                    writer.add_scalar('{}/Accuracy/train'.format(task.get_name()), acc, iterations)
-                    writer.add_scalar('{}/Loss/train'.format(task.get_name()), iter_loss, iterations)
-                    print(log_template.format(
+        # Feed sentences into BERT instance, compute loss, perform backward
+        # pass, update weights.
+        predictions = model(sentences, sampler.get_name(), attention_mask=attention_masks)
+
+        loss = sampler.get_loss(predictions, labels.to(device))
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        iterations += 1
+        if iterations % args.log_every == 0:
+            acc = sampler.calculate_accuracy(predictions, labels.to(device))
+            iter_loss = running_loss / args.log_every
+            writer.add_scalar('{}/Accuracy/train'.format(sampler.get_name()), acc, iterations)
+            writer.add_scalar('{}/Loss/train'.format(sampler.get_name()), iter_loss, iterations)
+            print(log_template.format(
+                str(timedelta(seconds=int(time.time() - start))),
+                sampler.get_name(),
+                iterations,
+                i+1, train_iter_len,
+                (i+1) / train_iter_len * 100,
+                iter_loss, acc))
+            running_loss = 0.0
+
+        # saving redundant parameters
+        # Save model checkpoints.
+        if iterations % args.save_every == 0:
+            acc = sampler.calculate_accuracy(predictions, labels.to(device))
+            snapshot_prefix = os.path.join(args.save_path, 'snapshot')
+            snapshot_path = (
+                    snapshot_prefix +
+                    '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
+                ).format(acc, loss.item(), iterations)
+            # FIXME: save_model
+            model.save_model(args.unfreeze_num, snapshot_path)
+            # Keep only the last snapshot
+            for f in glob.glob(snapshot_prefix + '*'):
+                if f != snapshot_path:
+                    os.remove(f)
+
+        if iterations % args.eval_every == 0:
+            # ============================ EVALUATION ============================
+            dev_task_accs = []
+            for task in sampler.tasks:
+                dev_iter = task.get_iter('dev', tokenizer, batch_size=args.batch_size)
+                dev_iter_len = len(dev_iter)
+                model.eval()
+
+                # calculate accuracy on validation set
+                sum_dev_loss, sum_dev_acc = 0, 0
+                with torch.no_grad():
+                    for dev_batch in dev_iter:
+                        sentences = dev_batch[0].to(device)
+                        labels = dev_batch[1]
+                        attention_masks = dev_batch[2].to(device)
+
+                        outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
+                        # Loss
+                        batch_dev_loss = task.get_loss(outputs, labels.to(device))
+                        sum_dev_loss += batch_dev_loss.item()
+                        # Accuracy
+                        acc = task.calculate_accuracy(outputs, labels.to(device))
+                        sum_dev_acc += acc
+                dev_acc = sum_dev_acc / dev_iter_len
+                dev_loss = sum_dev_loss / dev_iter_len
+
+                print(dev_log_template.format(
                         str(timedelta(seconds=int(time.time() - start))),
                         task.get_name(),
-                        epoch,
                         iterations,
-                        batch_idx+1, train_iter_len,
-                        (batch_idx+1) / train_iter_len * 100,
-                        iter_loss, acc))
-                    running_loss = 0.0
+                        i+1, train_iter_len,
+                        (i+1) / train_iter_len * 100,
+                        dev_loss, dev_acc))
 
-                # saving redundant parameters
-                # Save model checkpoints.
-                if iterations % args.save_every == 0:
-                    acc = task.calculate_accuracy(predictions, labels.to(device))
-                    snapshot_prefix = os.path.join(args.save_path, 'snapshot')
-                    snapshot_path = (
-                            snapshot_prefix +
-                            '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-                        ).format(acc, loss.item(), iterations)
-                    # FIXME: save_model
-                    model.save_model(args.unfreeze_num, snapshot_path)
-                    # Keep only the last snapshot
-                    for f in glob.glob(snapshot_prefix + '*'):
-                        if f != snapshot_path:
-                            os.remove(f)
+                writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
+                writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
+                dev_task_accs.append(dev_acc)
 
-            # ============================ EVALUATION ============================
-            dev_iter = task.get_iter('dev', tokenizer, batch_size=args.batch_size)
-            dev_iter_len = len(dev_iter)
-            model.eval()
+            mean_dev_acc = sum(dev_task_accs) / len(dev_task_accs)
 
-            # calculate accuracy on validation set
-            sum_dev_loss, sum_dev_acc = 0, 0
-            with torch.no_grad():
-                for dev_batch in dev_iter:
-                    sentences = dev_batch[0].to(device)
-                    labels = dev_batch[1]
-                    attention_masks = dev_batch[2].to(device)
-
-                    outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
-                    # Loss
-                    batch_dev_loss = task.get_loss(outputs, labels.to(device))
-                    sum_dev_loss += batch_dev_loss.item()
-                    # Accuracy
-                    acc = task.calculate_accuracy(outputs, labels.to(device))
-                    sum_dev_acc += acc
-            dev_acc = sum_dev_acc / dev_iter_len
-            dev_loss = sum_dev_loss / dev_iter_len
-
-            print(dev_log_template.format(
-                    str(timedelta(seconds=int(time.time() - start))),
-                    task.get_name(),
-                    epoch,
-                    iterations,
-                    batch_idx+1, train_iter_len,
-                    (batch_idx+1) / train_iter_len * 100,
-                    dev_loss, dev_acc))
-
-            writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
-            writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
-
-            if best_dev_acc < dev_acc:
-                best_dev_acc = dev_acc
+            if best_dev_acc < mean_dev_acc:
+                best_dev_acc = mean_dev_acc
                 snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
                 snapshot_path = (
                         snapshot_prefix +
-                        '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-                    ).format(dev_acc, dev_loss, iterations)
+                        '_acc_{:.4f}_iter_{}_model.pt'
+                    ).format(mean_dev_acc, iterations)
                 # FIXME: save_model
                 model.save_model(args.unfreeze_num, snapshot_path)
                 # Keep only the best snapshot
@@ -171,7 +180,6 @@ if __name__ == '__main__':
         for task in tasks:
             model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
         model.load_model(args.resume_snapshot, device)
-        sampler = TaskSampler(tasks, method='random')
     else:
 
         model = MetaLearner(args)
@@ -184,6 +192,5 @@ if __name__ == '__main__':
         tasks.append(OffensevalTask())
         for task in tasks:
             model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
-        sampler = TaskSampler(tasks, method='random')
 
-    results = train([sampler], model, args, device)
+    results = train(tasks, model, args, device)
