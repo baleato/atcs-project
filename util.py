@@ -117,7 +117,7 @@ class EpisodicSampler(torch.utils.data.Sampler):
         return num_labels * max_label
 
 
-def make_dataloader(dataset_id, input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True, supp_query_split=True):
+def make_dataloader(dataset_id, input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True, supp_query_split=False):
     """ expects dataset_id, input_ids, labels, attention_masks to be tensors"""
 
     # split data into a support and query set with same label distribution and same labels at the same index
