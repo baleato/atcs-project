@@ -405,10 +405,10 @@ class SentimentAnalysis(Task):
     NAME = 'SentimentAnalysis'
 
     def __init__(self, fn_tokenizer=bert_tokenizer):
-        self.classifier = MLPClassifier(target_dim=1)
-        self.criterion = BCEWithLogitsLoss()
-        self.fn_tokenizer = fn_tokenizer
         self.num_classes = 2
+        self.classifier = MLPClassifier(target_dim=self.num_classes)
+        self.criterion = CrossEntropyLoss()
+        self.fn_tokenizer = fn_tokenizer
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         """
@@ -428,7 +428,7 @@ class SentimentAnalysis(Task):
         labels = np.where(df.label.values == 'positive', 1, 0)
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
-        labels = torch.tensor(labels).unsqueeze(1)
+        labels = torch.tensor(labels)#.unsqueeze(1)
 
         return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
 
@@ -436,13 +436,11 @@ class SentimentAnalysis(Task):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-        return self.criterion(predictions, labels.type_as(predictions).reshape_as(predictions))
+        return self.criterion(predictions, labels.long())
 
     def calculate_accuracy(self, predictions, labels):
-        labels = labels.squeeze(-1)
-        pred_labels = torch.nn.functional.softmax(-predictions, dim=1).argmax(dim=1)  # according to equation 2 in the paper
-        #pred_labels = torch.sigmoid(predictions).round()
-        bin_labels = pred_labels == labels
+        new_predictions = predictions.argmax(dim=1, keepdim=False)
+        bin_labels = new_predictions == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
 
