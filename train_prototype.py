@@ -122,7 +122,9 @@ def train(tasks, model, args, device):
 
                 query_embedding = model(query, attention_mask=query_mask)
                 distances = compute_distance(query_embedding, centroids)
+
                 #predictions = torch.nn.functional.softmax(-distances, dim=1).argmax(dim=1)  # according to equation 2 in the paper
+
 
 
                 loss = criterion(-distances, query_labels.squeeze(-1).long().to(device))

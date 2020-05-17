@@ -273,29 +273,6 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         self.num_classes = 2
 
 
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
-        """
-        Returns an iterable over the single
-        Args:
-            split: train/dev/test
-        Returns:
-            Iterable for the specified split
-        """
-        assert split in ['train', 'dev', 'test']
-        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
-        df = pd.read_csv('./data/semeval18_task1_class/{}.txt'.format(split), sep='\t')
-        # select all positive labels for the emotion and an equally sized sample of negative sentences
-        df_emotion = df[df[self.emotion] == 1].copy()
-        df_other = df[df[self.emotion] == 0].sample(df_emotion.shape[0], random_state=1)
-        selected_df = pd.concat([df_emotion, df_other]).sample(frac=1, random_state=1)
-        sentences = selected_df.Tweet.values
-        labels = selected_df[self.emotions].values
-
-        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
-        labels = torch.tensor(labels)
-
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
-
     def get_loss(self, predictions, labels):
         return self.criterion(predictions, labels.reshape(-1))
 
