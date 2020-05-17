@@ -35,6 +35,7 @@ class Task(object):
     def get_num_classes(self):
         return self.num_classes
 
+
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
     def __init__(self, task_iters, method, custom_task_ratio=None):
@@ -42,7 +43,12 @@ class TaskSamplerIter(object):
         self.task_iters = [iter(ti) for ti in task_iters]
         self.method = method
         if custom_task_ratio is None:
-            task_ratio = [math.sqrt(len(task_iter)) for task_iter in task_iters]
+            # Using the square root of the dataset size is a strategy that yields good results.
+            # Additionally, we divide by the number of times the same dataset is used in
+            # different tasks. This aims to attenuate bias towards the data distribution of
+            # a particular dataset.
+            dataset_ids = [task_iter.dataset.id for task_iter in task_iters]
+            task_ratio = [math.sqrt(task_iter.dataset.tensors[0].shape[0])/dataset_ids.count(task_iter.dataset.id) for task_iter in task_iters]
         else:
             task_ratio = custom_task_ratio
         self.task_probs = [tr/sum(task_ratio) for tr in task_ratio]
@@ -58,19 +64,6 @@ class TaskSamplerIter(object):
             return (self.task_index + 1) % len(self.task_iters) if self.batch_idx != 0 else 0
         else:
             return np.random.choice(len(self.task_iters), p=self.task_probs)
-
-    def get_task_batch(self, task_index):
-        task_iter = self.task_iters[task_index]
-        try:
-            batch = next(task_iter)
-        except StopIteration:
-            # Note that depending on how next it's implemented it could also
-            # return an empty list instead of raising StopIteration
-
-            # if iterator is empty initialize new iterator from original dataloader
-            task_iter = iter(self.original_dataloaders[task_index])
-            batch = next(task_iter)
-        return batch
 
     def __iter__(self):
         return self
@@ -92,7 +85,7 @@ class TaskSamplerIter(object):
 
             self.task_index = task_index
             self.batch_idx += 1
-            if self.batch_idx > self.num_total_batches:
+            if self.batch_idx == self.num_total_batches+1:
                 logging.warning(
                     (
                         'Number of batches exceeds the expected amount. ' +
@@ -140,7 +133,6 @@ class MixedTaskSamplerIter(TaskSamplerIter):
                 task_selection.append(task_sample)
             batch = []
             for i in range(len(task_sample)):
-                bla = [row[i] for row in task_selection]
                 field = torch.cat([row[i].long() for row in task_selection])
                 batch.append(field)
             self.batch_idx += 1
@@ -227,7 +219,7 @@ class SemEval18Task(Task):
         ]
         self.fn_tokenizer = fn_tokenizer
         self.num_classes = len(self.emotions)
-        self.classifier = MLPClassifier(target_dim=self.num_classes)
+        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
@@ -247,7 +239,7 @@ class SemEval18Task(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)
 
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
@@ -281,33 +273,10 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         self.emotion = emotion
         self.emotions = [self.emotion]
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = MLPClassifier(target_dim=2)
+        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
 
-
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
-        """
-        Returns an iterable over the single
-        Args:
-            split: train/dev/test
-        Returns:
-            Iterable for the specified split
-        """
-        assert split in ['train', 'dev', 'test']
-        # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
-        df = pd.read_csv('./data/semeval18_task1_class/{}.txt'.format(split), sep='\t')
-        # select all positive labels for the emotion and an equally sized sample of negative sentences
-        df_emotion = df[df[self.emotion] == 1].copy()
-        df_other = df[df[self.emotion] == 0].sample(df_emotion.shape[0], random_state=1)
-        selected_df = pd.concat([df_emotion, df_other]).sample(frac=1, random_state=1)
-        sentences = selected_df.Tweet.values
-        labels = selected_df[self.emotions].values
-
-        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
-        labels = torch.tensor(labels)
-
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_loss(self, predictions, labels):
         return self.criterion(predictions, labels.reshape(-1))
@@ -330,7 +299,7 @@ class OffensevalTask(Task):
     def __init__(self, fn_tokenizer=bert_tokenizer):
 
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = MLPClassifier(target_dim=2)
+        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
 
@@ -339,16 +308,16 @@ class OffensevalTask(Task):
     # len(train_iter) -> returns the number of batches
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
-        if split == 'test':
-            data_df = pd.read_csv('data/offenseval/testset-levela.tsv', sep='\t')
+        if split == 'test' or split == 'dev':
+            data_df = pd.read_csv('data/OLIDv1.0/testset-levela.tsv', sep='\t')
             sentences = data_df.tweet.values
-            data_df_labels = pd.read_csv('data/offenseval/labels-levela.csv', sep=',', header=None)
+            data_df_labels = pd.read_csv('data/OLIDv1.0/labels-levela.csv', sep=',', header=None)
             data_df_labels[1].replace(to_replace='OFF', value=1, inplace=True)
             data_df_labels[1].replace(to_replace='NOT', value=0, inplace=True)
             labels = data_df_labels[1].values
         # TODO Make Dev set
         else:
-            data_df = pd.read_csv('data/offenseval/offenseval-training-v1.tsv', sep='\t')
+            data_df = pd.read_csv('data/OLIDv1.0/olid-training-v1.0.tsv', sep='\t')
             sentences = data_df.tweet.values
             data_df.subtask_a.replace(to_replace='OFF', value=1, inplace=True)
             data_df.subtask_a.replace(to_replace='NOT', value=0, inplace=True)
@@ -357,7 +326,7 @@ class OffensevalTask(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)
 
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
@@ -375,10 +344,11 @@ class SarcasmDetection(Task):
     NAME = 'SarcasmDetection'
 
     def __init__(self, fn_tokenizer=bert_tokenizer):
-        self.classifier = MLPClassifier(target_dim=1)
-        self.criterion = BCEWithLogitsLoss()
-        self.fn_tokenizer = fn_tokenizer
         self.num_classes = 2
+        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=self.num_classes)
+        self.criterion = CrossEntropyLoss()
+        self.fn_tokenizer = fn_tokenizer
+
 
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
@@ -401,21 +371,18 @@ class SarcasmDetection(Task):
         labels = np.where(df.label.values == 'SARCASM', 1, 0)
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
-        labels = torch.tensor(labels).unsqueeze(1)
+        labels = torch.tensor(labels)#.unsqueeze(1)
 
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
 
     def get_loss(self, predictions, labels):
-        return self.criterion(predictions, labels.type_as(predictions).reshape_as(predictions))
+        return self.criterion(predictions, labels.long())
 
     def calculate_accuracy(self, predictions, labels):
-        labels = labels.squeeze(-1)
-        pred_labels = torch.nn.functional.softmax(-predictions, dim=1).argmax(dim=1)  # according to equation 2 in the paper
-        #pred_labels = torch.sigmoid(predictions).round()
-        bin_labels = pred_labels == labels
+        new_predictions = predictions.argmax(dim=1, keepdim=False)
+        bin_labels = new_predictions == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
-
