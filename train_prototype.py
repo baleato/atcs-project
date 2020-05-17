@@ -122,7 +122,8 @@ def train(tasks, model, args, device):
 
                 query_embedding = model(query, attention_mask=query_mask)
                 distances = compute_distance(query_embedding, centroids)
-                #predictions = nn.functional.softmax(-distances, dim=1) # according to equation 2 in the paper
+                predictions = torch.nn.functional.softmax(-distances, dim=1).argmax(dim=1)  # according to equation 2 in the paper
+
 
                 loss = criterion(-distances, query_labels.squeeze(-1).long().to(device))
                 if torch.isnan(loss).item():
@@ -134,7 +135,7 @@ def train(tasks, model, args, device):
                 running_loss += loss.item()
                 iterations += 1
                 if iterations % args.log_every == 0:
-                    acc = task.calculate_accuracy(distances, query_labels.to(device))
+                    acc = task.calculate_accuracy(predictions, query_labels.to(device))
                     iter_loss = running_loss / args.log_every
                     writer.add_scalar('{}/Accuracy/train'.format(task.get_name()), acc, iterations)
                     writer.add_scalar('{}/Loss/train'.format(task.get_name()), iter_loss, iterations)
@@ -151,7 +152,7 @@ def train(tasks, model, args, device):
                 # saving redundant parameters
                 # Save model checkpoints.
                 if iterations % args.save_every == 0:
-                    acc = task.calculate_accuracy(distances, query_labels.to(device))
+                    acc = task.calculate_accuracy(predictions, query_labels.to(device))
 
                     snapshot_prefix = os.path.join(args.save_path, 'snapshot')
                     snapshot_path = (
@@ -159,7 +160,7 @@ def train(tasks, model, args, device):
                             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                         ).format(acc, loss.item(), iterations)
                     # FIXME: save_model
-                    #save_model(model, args.unfreeze_num, snapshot_path)
+                    save_model(model, args.unfreeze_num, snapshot_path)
                     # Keep only the last snapshot
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:

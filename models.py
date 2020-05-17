@@ -63,7 +63,8 @@ class MLPClassifier(nn.Module):
     """
     Class for Multi-Layer Perceptron Classifier
     """
-    def __init__(self, input_dim=768, target_dim=2, hidden_dims=None, nonlinearity=None, dropout=0.0):
+    
+    def __init__(self, input_dim=768, target_dim=2, hidden_dims=[], nonlinearity='ReLU', dropout=0.0):
         super(MLPClassifier, self).__init__()
 
         # append input and output dimension to layer list
@@ -108,6 +109,7 @@ class PrototypeLearner(nn.Module):
         self.classifier_layer = MLPClassifier(input_dim, target_dim, hidden_dims, nonlinearity, dropout)
 
 
+
     def forward(self, inputs, attention_mask=None):
         encoded = self.encoder(inputs, attention_mask=attention_mask)[0]
         cls_token_enc = encoded[:, 0, :]
@@ -117,6 +119,7 @@ class PrototypeLearner(nn.Module):
 
     def calculate_centroids(self, support, num_classes):
         support, support_labels = support
+
         # compute centroids on support set according to equation 1 in the paper
         unique_labels = support_labels.unique()
         centroids = []
@@ -197,6 +200,7 @@ class ProtoMAMLLearner(nn.Module):
         state_dicts['proto_net_classifier_state_dict'] = proto_net_classifier.state_dict()
         state_dicts['output_layer_state_dict'] = classifier.state_dict()
 
+
         torch.save(state_dicts, snapshot_path)
 
     def load_model(self, path, device):
@@ -205,6 +209,8 @@ class ProtoMAMLLearner(nn.Module):
         unfreeze_num = checkpoint['unfreeze_num']
         # Overwrite last n BERT blocks, overwrite MLP params
         for i in range(1, unfreeze_num + 1):
+
             self.proto_net.encoder.encoder.layer[-i].load_state_dict(checkpoint['proto_net_bert_l_-{}'.format(i)])
         self.proto_net.classifier_layer.load_state_dict(checkpoint['proto_net_classifier_state_dict'])
         self.output_layer.load_state_dict(checkpoint['output_layer_state_dict'])
+

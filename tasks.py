@@ -214,7 +214,7 @@ class SemEval18Task(Task):
         ]
         self.fn_tokenizer = fn_tokenizer
         self.num_classes = len(self.emotions)
-        self.classifier = MLPClassifier(target_dim=self.num_classes)
+        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
@@ -268,7 +268,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         self.emotion = emotion
         self.emotions = [self.emotion]
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = MLPClassifier(target_dim=2)
+        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
 
@@ -317,7 +317,7 @@ class OffensevalTask(Task):
     def __init__(self, fn_tokenizer=bert_tokenizer):
 
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = MLPClassifier(target_dim=2)
+        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
 
@@ -362,7 +362,7 @@ class SarcasmDetection(Task):
     NAME = 'SarcasmDetection'
 
     def __init__(self, fn_tokenizer=bert_tokenizer):
-        self.classifier = MLPClassifier(target_dim=1)
+        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=1)
         self.criterion = BCEWithLogitsLoss()
         self.fn_tokenizer = fn_tokenizer
         self.num_classes = 2
@@ -400,9 +400,7 @@ class SarcasmDetection(Task):
 
     def calculate_accuracy(self, predictions, labels):
         labels = labels.squeeze(-1)
-        pred_labels = torch.nn.functional.softmax(-predictions, dim=1).argmax(dim=1)  # according to equation 2 in the paper
-        #pred_labels = torch.sigmoid(predictions).round()
-        bin_labels = pred_labels == labels
+        bin_labels = predictions == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
 
