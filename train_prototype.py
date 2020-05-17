@@ -231,8 +231,8 @@ if __name__ == '__main__':
     else:
         print("Tasks")
         tasks = []
-        #for emotion in SemEval18SingleEmotionTask.EMOTIONS:
-        #    tasks.append(SemEval18SingleEmotionTask(emotion))
+        for emotion in SemEval18SingleEmotionTask.EMOTIONS:
+            tasks.append(SemEval18SingleEmotionTask(emotion))
         tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
         model = PrototypeLearner(args, hidden_dims=[500])
