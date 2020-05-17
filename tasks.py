@@ -304,15 +304,15 @@ class OffensevalTask(Task):
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
         if split == 'test' or split == 'dev':
-            data_df = pd.read_csv('data/offenseval/testset-levela.tsv', sep='\t')
+            data_df = pd.read_csv('data/OLIDv1.0/testset-levela.tsv', sep='\t')
             sentences = data_df.tweet.values
-            data_df_labels = pd.read_csv('data/offenseval/labels-levela.csv', sep=',', header=None)
+            data_df_labels = pd.read_csv('data/OLIDv1.0/labels-levela.csv', sep=',', header=None)
             data_df_labels[1].replace(to_replace='OFF', value=1, inplace=True)
             data_df_labels[1].replace(to_replace='NOT', value=0, inplace=True)
             labels = data_df_labels[1].values
         # TODO Make Dev set
         else:
-            data_df = pd.read_csv('data/offenseval/offenseval-training-v1.tsv', sep='\t')
+            data_df = pd.read_csv('data/OLIDv1.0/olid-training-v1.0.tsv', sep='\t')
             sentences = data_df.tweet.values
             data_df.subtask_a.replace(to_replace='OFF', value=1, inplace=True)
             data_df.subtask_a.replace(to_replace='NOT', value=0, inplace=True)
@@ -381,4 +381,3 @@ class SarcasmDetection(Task):
         bin_labels = new_predictions == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
-
