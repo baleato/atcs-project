@@ -363,7 +363,7 @@ class SentimentAnalysis(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)#.unsqueeze(1)
 
-        return make_dataloader(input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier
