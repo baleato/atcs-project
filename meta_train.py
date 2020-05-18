@@ -69,7 +69,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     print('done.')
 
     sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio, supp_query_split=True)
-    task_model = type(model)(args, hidden_dims=[500])
+    task_model = type(model)(args)
 
     iterations = 0
     # Iterate over the data
@@ -232,10 +232,10 @@ if __name__ == '__main__':
     if args.resume_snapshot:
         print("Loading models from snapshot")
         # TODO find way to pass right number of hidden layers when loading from snapshot
-        model = ProtoMAMLLearner(args, hidden_dims=[500])
+        model = ProtoMAMLLearner(args)
         model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
-        model = ProtoMAMLLearner(args, hidden_dims=[500])
+        model = ProtoMAMLLearner(args)
 
     model.to(device)
     print("Tasks")

@@ -101,10 +101,8 @@ class SLClassifier(nn.Module):
 
 
 class PrototypeLearner(nn.Module):
-    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config, input_dim=768, target_dim=500, nonlinearity='ReLU', dropout=0.0):
         super(PrototypeLearner, self).__init__()
-        if hidden_dims is None:
-            hidden_dims = []
         self.encoder = Encoder(config)
         # TODO: revisit whether PrototypeLearner should use SLClassifier or just the encoder
         self.classifier_layer = SLClassifier(input_dim, target_dim)
@@ -142,9 +140,9 @@ class PrototypeLearner(nn.Module):
 
 
 class ProtoMAMLLearner(nn.Module):
-    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config, input_dim=768, target_dim=500, nonlinearity='ReLU', dropout=0.0):
         super(ProtoMAMLLearner, self).__init__()
-        self.proto_net = PrototypeLearner(config, input_dim, target_dim, hidden_dims, nonlinearity, dropout)
+        self.proto_net = PrototypeLearner(config, input_dim, target_dim, nonlinearity, dropout)
         self.output_layer = nn.Linear(target_dim, 2)
 
     def calculate_output_params(self, prototypes):

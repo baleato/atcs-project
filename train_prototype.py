@@ -225,7 +225,7 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = PrototypeLearner(args, hidden_dims=[500])
+        model = PrototypeLearner(args)
         print("Tasks")
         tasks = []
         for emotion in SemEval18SingleEmotionTask.EMOTIONS:
@@ -240,5 +240,5 @@ if __name__ == '__main__':
             tasks.append(SemEval18SingleEmotionTask(emotion))
         tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
-        model = PrototypeLearner(args, hidden_dims=[500])
+        model = PrototypeLearner(args)
     results = train(tasks, model, args, device)
