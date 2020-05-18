@@ -27,8 +27,16 @@ Overview of datasets files:
 ```tree
 data/
 ├── download.sh
-├── offenseval
-│   └── offenseval-training-v1.tsv
+├── OLIDv1.0
+│   ├── README.txt
+│   ├── labels-levela.csv
+│   ├── labels-levelb.csv
+│   ├── labels-levelc.csv
+│   ├── olid-annotation.txt
+│   ├── olid-training-v1.0.tsv
+│   ├── testset-levela.tsv
+│   ├── testset-levelb.tsv
+│   └── testset-levelc.tsv
 ├── semeval18_task1_class
 │   ├── dev.txt
 │   ├── test.txt
