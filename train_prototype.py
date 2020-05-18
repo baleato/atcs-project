@@ -14,7 +14,7 @@ from util import (
     save_model)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
-from models import MetaLearner, PrototypeLearner
+from models import PrototypeLearner
 
 from datetime import datetime
 import torch.optim as optim
@@ -237,4 +237,3 @@ if __name__ == '__main__':
         tasks.append(OffensevalTask())
         model = PrototypeLearner(args, hidden_dims=[500])
     results = train(tasks, model, args, device)
-

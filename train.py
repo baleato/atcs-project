@@ -14,7 +14,7 @@ from util import (
     save_model)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
-from models import MetaLearner, PrototypeLearner
+from models import MultiTaskLearner
 
 from datetime import datetime
 import torch.optim as optim
@@ -170,7 +170,7 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = MetaLearner(args)
+        model = MultiTaskLearner(args)
         print("Tasks")
         tasks = []
         for emotion in SemEval18SingleEmotionTask.EMOTIONS:
@@ -182,7 +182,7 @@ if __name__ == '__main__':
         model.load_model(args.resume_snapshot, device)
     else:
 
-        model = MetaLearner(args)
+        model = MultiTaskLearner(args)
         model.to(device)
         print("Tasks")
         tasks = []

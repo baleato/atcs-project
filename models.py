@@ -8,9 +8,9 @@ from copy import deepcopy
 
 import logging
 
-class MetaLearner(nn.Module):
+class MultiTaskLearner(nn.Module):
     def __init__(self, config):
-        super(MetaLearner, self).__init__()
+        super(MultiTaskLearner, self).__init__()
         self.encoder = BertModel.from_pretrained("bert-base-uncased")
         self.encoder.requires_grad_(False)
         for block in self.encoder.encoder.layer[-(config.unfreeze_num):]:
@@ -213,4 +213,3 @@ class ProtoMAMLLearner(nn.Module):
             self.proto_net.encoder.encoder.layer[-i].load_state_dict(checkpoint['proto_net_bert_l_-{}'.format(i)])
         self.proto_net.classifier_layer.load_state_dict(checkpoint['proto_net_classifier_state_dict'])
         self.output_layer.load_state_dict(checkpoint['output_layer_state_dict'])
-
