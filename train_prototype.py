@@ -3,6 +3,7 @@ import time
 import sys
 import glob
 from datetime import timedelta
+from itertools import chain
 
 from torch import load
 import torch.nn as nn
@@ -74,7 +75,10 @@ def train(tasks, model, args, device):
     start = time.time()
 
     # Define optimizers and loss function
-    optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
+    optimizer_bert = optim.Adam(params=model.encoder.bert.parameters(), lr=args.bert_lr)
+    optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters(),
+                                        model.classifier_layer.parameters()),
+                           lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
     # TODO maybe find nicer solution for passing(handling) the tokenizer
@@ -106,6 +110,7 @@ def train(tasks, model, args, device):
         query_mask = query_tuple[2].to(device)
 
         # Reset .grad attributes for weights
+        optimizer_bert.zero_grad()
         optimizer.zero_grad()
 
 
@@ -129,6 +134,7 @@ def train(tasks, model, args, device):
             raise Exception("Got NaNs in loss function. Happens only sometimes... Investigate why!")
         loss.backward()
         optimizer.step()
+        optimizer_bert.step()
 
         running_loss += loss.item()
         iterations += 1
