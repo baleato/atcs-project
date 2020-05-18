@@ -5,6 +5,7 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, NLLLoss
 from sklearn.metrics import jaccard_score, f1_score, accuracy_score
 import numpy as np
 import logging
+import sys
 
 from models import MLPClassifier
 from util import bert_tokenizer, make_dataloader
@@ -318,6 +319,51 @@ class SarcasmDetection(Task):
         labels = torch.tensor(labels)#.unsqueeze(1)
 
         return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
+
+    def get_classifier(self):
+        return self.classifier
+
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions, labels.long())
+
+    def calculate_accuracy(self, predictions, labels):
+        new_predictions = predictions.argmax(dim=1, keepdim=False)
+        bin_labels = new_predictions == labels
+        correct = bin_labels.sum().float().item()
+        return correct / len(labels)
+
+
+
+class SentimentAnalysis(Task):
+    NAME = 'SentimentAnalysis'
+
+    def __init__(self, fn_tokenizer=bert_tokenizer):
+        self.num_classes = 2
+        self.classifier = MLPClassifier(target_dim=self.num_classes)
+        self.criterion = CrossEntropyLoss()
+        self.fn_tokenizer = fn_tokenizer
+
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
+        """
+        Returns an iterable over the single
+        Args:
+            split: train/dev/test
+        Returns:
+            Iterable for the specified split
+        """
+        # current iter will have only two classes; we could extend it to have more
+        df = pd.read_csv('data/tweets_output.txt',header=None, sep='\t', names=['ID1', 'ID2', 'label','sentence'])
+        df = df[df.label != 'neutral']
+        df = df[df.label != 'objective']
+        df = df[df.label != 'objective-OR-neutral']
+
+        sentences = df.sentence.values
+        labels = np.where(df.label.values == 'positive', 1, 0)
+
+        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
+        labels = torch.tensor(labels)#.unsqueeze(1)
+
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
 
     def get_classifier(self):
         return self.classifier

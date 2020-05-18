@@ -24,3 +24,9 @@ if [[ ! -f WaseemHovy.zip ]]; then
   curl -Lo WaseemHovy.zip 'https://drive.google.com/uc?export=download&id=1Dbvn7yJkS3Iurx92-7sfe0DsDgD18Dbf'
   unzip WaseemHovy.zip
 fi
+
+# Sentiment Classification; data/sem_eval_2015
+if [[ ! -f sem_eval_2015/tweets_output.txt ]]; then
+  mkdir -p sem_eval_2015
+  curl -Lo sem_eval_2015/tweets_output.txt 'https://drive.google.com/uc?export=download&id=10G4Owb12txUo1HZqkwaxJ69-GHyWvPKN'
+fi
