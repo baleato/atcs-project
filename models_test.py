@@ -34,7 +34,7 @@ class TestModels(unittest.TestCase):
         args = self.args
         model = MultiTaskLearner(args)
         model.add_task_classifier(task.get_name(), task.get_classifier().to(self.device))
-        model.save_model(args.unfreeze_num, self.model_path)
+        model.save_model(self.model_path)
         self.print_model_size(model)
 
         model2 = MultiTaskLearner(args)
@@ -45,7 +45,7 @@ class TestModels(unittest.TestCase):
 
     def test_PrototypeLearner_save_load(self):
         model = PrototypeLearner(self.args, hidden_dims=[500])
-        model.save_model(self.args.unfreeze_num, self.model_path)
+        model.save_model(self.model_path)
         self.print_model_size(model)
         model2 = PrototypeLearner(self.args, hidden_dims=[500])
         model2.load_model(self.model_path, self.device)
@@ -53,7 +53,7 @@ class TestModels(unittest.TestCase):
 
     def test_ProtoMAMLLearner_save_load(self):
         model = ProtoMAMLLearner(self.args, hidden_dims=[500])
-        model.save_model(self.args.unfreeze_num, self.model_path)
+        model.save_model(self.model_path)
         self.print_model_size(model)
         model2 = ProtoMAMLLearner(self.args, hidden_dims=[500])
         model2.load_model(self.model_path, self.device)

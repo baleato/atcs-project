@@ -7,7 +7,7 @@ import numpy as np
 import logging
 import sys
 
-from models import MLPClassifier
+from models import SLClassifier
 from util import bert_tokenizer, make_dataloader
 
 
@@ -165,7 +165,7 @@ class SemEval18Task(Task):
         ]
         self.fn_tokenizer = fn_tokenizer
         self.num_classes = len(self.emotions)
-        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=self.num_classes)
+        self.classifier = SLClassifier(target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32, supp_query_split=False):
@@ -219,7 +219,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         self.emotion = emotion
         self.emotions = [self.emotion]
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=2)
+        self.classifier = SLClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
 
@@ -244,7 +244,7 @@ class OffensevalTask(Task):
     def __init__(self, fn_tokenizer=bert_tokenizer):
 
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=2)
+        self.classifier = SLClassifier(target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
 
@@ -290,7 +290,7 @@ class SarcasmDetection(Task):
 
     def __init__(self, fn_tokenizer=bert_tokenizer):
         self.num_classes = 2
-        self.classifier = MLPClassifier(hidden_dims=[512], target_dim=self.num_classes)
+        self.classifier = SLClassifier(target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
 

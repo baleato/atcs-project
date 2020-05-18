@@ -197,7 +197,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                         snapshot_prefix +
                         '_loss_{:.5f}_iter_{}_model.pt'
                 ).format(best_query_loss, iterations)
-                model.save_model(args.unfreeze_num, snapshot_path)
+                model.save_model(snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -213,7 +213,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                     '_iter_{}_loss_{}_model.pt'
             ).format(iterations, iter_loss)
             logging.debug('Saving model...')
-            model.save_model(args.unfreeze_num, snapshot_path)
+            model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:

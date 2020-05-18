@@ -155,8 +155,7 @@ def train(tasks, model, args, device):
                     snapshot_prefix +
                     '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
             ).format(acc, loss.item(), iterations)
-            # FIXME: save_model
-            model.save_model(args.unfreeze_num, snapshot_path)
+            model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
