@@ -212,6 +212,9 @@ def get_args():
     parser.add_argument('--save_path', type=str, default='results')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--unfreeze_num', type=int, default=2)
+    parser.add_argument('--mlp_dims', nargs='+', type=int, default=[768])
+    parser.add_argument('--mlp_dropout', type=float, default=0)
+    parser.add_argument('--mlp_activation', default='ReLU', choices=['ReLU', 'Tanh'])
     parser.add_argument('--resume_snapshot', type=str, default='')
     parser.add_argument('--num_iterations', type=int, default=10000)
     parser.add_argument('--save_every', type=int, default=200)
@@ -221,12 +224,16 @@ def get_args():
     args = parser.parse_args()
     return args
 
+
 def get_args_meta():
     parser = ArgumentParser()
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--save_path', type=str, default='results')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--unfreeze_num', type=int, default=2)
+    parser.add_argument('--mlp_dims', nargs='+', type=int, default=[768])
+    parser.add_argument('--mlp_dropout', type=float, default=0)
+    parser.add_argument('--mlp_activation', default='ReLU', choices=['ReLU', 'Tanh'])
     parser.add_argument('--resume_snapshot', type=str, default='')
     parser.add_argument('--num_iterations', type=int, default=10000)
     parser.add_argument('--meta_batch_size', type=int, default=5)

@@ -11,13 +11,24 @@ import logging
 class Encoder(nn.Module):
     def __init__(self, config):
         super(Encoder, self).__init__()
+        # BERT
         self.unfreeze_num = config.unfreeze_num
         self.bert = BertModel.from_pretrained("bert-base-uncased")
         self.bert.requires_grad_(False)
         for block in self.bert.encoder.layer[-(config.unfreeze_num):]:
             for params in block.parameters():
                 params.requires_grad = True
-        # TODO: Add extra encoding layer that will be shared by all tasks/models
+
+        # MLP; layers: linear + dropout (optional) + activation
+        bert_cls_token_dims = 768
+        hidden_dims = [bert_cls_token_dims] + config.mlp_dims
+        layers = []
+        for h, h_next in zip(hidden_dims, hidden_dims[1:]):
+            layers.append(nn.Linear(h, h_next))
+            if config.mlp_dropout > 0:
+                layers.append(nn.Dropout(p=config.mlp_dropout))
+            layers.append(parse_nonlinearity(config.mlp_activation))
+        self.mlp = nn.Sequential(*layers)
 
     def forward(self, inputs, attention_mask=None):
         encoded = self.bert(inputs, attention_mask=attention_mask)[0]
@@ -32,6 +43,7 @@ class Encoder(nn.Module):
         state_dicts = {'unfreeze_num': self.unfreeze_num}
         for i in range(1, self.unfreeze_num+1):
             state_dicts['bert_l_-{}'.format(i)] = bert_model_copy.encoder.layer[-i].state_dict()
+        state_dicts['mlp'] = self.mlp.state_dict()
         return state_dicts
 
     def load_trainable_params(self, state_dicts):
@@ -39,6 +51,7 @@ class Encoder(nn.Module):
         # Overwrite last n BERT blocks, overwrite MLP params
         for i in range(1, unfreeze_num + 1):
             self.bert.encoder.layer[-i].load_state_dict(state_dicts['bert_l_-{}'.format(i)])
+        self.mlp.load_state_dict(state_dicts['mlp'])
 
 
 class MultiTaskLearner(nn.Module):
