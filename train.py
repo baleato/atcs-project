@@ -3,6 +3,7 @@ import time
 import sys
 import glob
 from datetime import timedelta
+from itertools import chain
 
 from torch import load
 import torch.nn as nn
@@ -14,7 +15,7 @@ from util import (
     save_model)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
-from models import MetaLearner, PrototypeLearner
+from models import MultiTaskLearner
 
 from datetime import datetime
 import torch.optim as optim
@@ -37,7 +38,12 @@ def train(tasks, model, args, device):
     start = time.time()
 
     # Define optimizers and loss function
-    optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
+    optimizer_bert = optim.Adam(params=model.encoder.bert.parameters(), lr=args.bert_lr)
+    # TODO: don't access model internals, export function to get desired parameters
+    task_classifiers_params = [model._modules[m_name].parameters() for m_name in model._modules if 'task' in m_name]
+    optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters(),
+                                        *task_classifiers_params),
+                           lr=args.lr)
 
     # TODO maybe find nicer solution for passing(handling) the tokenizer
     print('Loading Tokenizer..')
@@ -58,6 +64,7 @@ def train(tasks, model, args, device):
         batch = next(train_iter)
 
         # Reset .grad attributes for weights
+        optimizer_bert.zero_grad()
         optimizer.zero_grad()
 
         # Extract the sentence_ids and target vector, send sentences to GPU
@@ -72,6 +79,7 @@ def train(tasks, model, args, device):
         loss = sampler.get_loss(predictions, labels.to(device))
         loss.backward()
         optimizer.step()
+        optimizer_bert.step()
 
         running_loss += loss.item()
         iterations += 1
@@ -98,8 +106,7 @@ def train(tasks, model, args, device):
                     snapshot_prefix +
                     '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
                 ).format(acc, loss.item(), iterations)
-            # FIXME: save_model
-            model.save_model(args.unfreeze_num, snapshot_path)
+            model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
@@ -152,8 +159,7 @@ def train(tasks, model, args, device):
                         snapshot_prefix +
                         '_acc_{:.4f}_iter_{}_model.pt'
                     ).format(mean_dev_acc, iterations)
-                # FIXME: save_model
-                model.save_model(args.unfreeze_num, snapshot_path)
+                model.save_model(snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -170,7 +176,7 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = MetaLearner(args)
+        model = MultiTaskLearner(args)
         print("Tasks")
         tasks = []
         for emotion in SemEval18SingleEmotionTask.EMOTIONS:
@@ -182,7 +188,7 @@ if __name__ == '__main__':
         model.load_model(args.resume_snapshot, device)
     else:
 
-        model = MetaLearner(args)
+        model = MultiTaskLearner(args)
         model.to(device)
         print("Tasks")
         tasks = []

@@ -52,8 +52,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     writer = SummaryWriter(
         os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
 
-    header = '      Time      Task      Iteration      Loss'
-    log_template = '{:>10} {:>25} {:10.0f} {:10.6f}'
+    header = '      Time      Task      Iteration      Loss      Accuracy'
+    log_template = '{:>10} {:>25} {:10.0f} {:10.6f} {:10.6f}'
 
     print(header)
     start = time.time()
@@ -68,18 +68,23 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     print('done.')
 
-    sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio)
-    task_model = type(model)(args, hidden_dims=[500])
+    sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio, supp_query_split=True)
+    task_model = type(model)(args)
 
     iterations = 0
     # Iterate over the data
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     model.train()
+
+    average_query_loss = 0
+    best_query_loss = 1e+9
     # outer loop (meta-iterations)
     for i in range(meta_iters):
         grads = []
-        iteration_loss = 0
-        task_losses = {}
+        task_losses_inner = {}
+        task_accuracies_inner = {}
+        task_losses_outer = {}
+        task_accuracies_outer = {}
         # inner loop (sample different tasks)
         for task_sample in range(meta_batch_size):
             # clone original model
@@ -88,8 +93,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             task_model.train()
 
             # new optimizer for every new task model
-            task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.parameters(), lr=args.lr)
-            task_optimizer = optim.SGD(params=chain(task_model.proto_net.classifier_layer.parameters(),
+            task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
+            task_optimizer = optim.SGD(params=chain(task_model.proto_net.encoder.mlp.parameters(),
                                                     task_model.output_layer.parameters()),
                                        lr=args.inner_lr)
 
@@ -114,8 +119,9 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                 task_optimizer.step()
                 task_optimizer_BERT.step()
 
-            # record task losses for logging
-            task_losses[sampler.get_name()] = task_loss.item()
+            # record task losses and accuracies for logging
+            task_losses_inner[sampler.get_name()] = task_loss.item()
+            task_accuracies_inner[sampler.get_name()] = sampler.calculate_accuracy(predictions, support[1].to(device))
 
             # trick to add prototypes back to computation graph
             W = prototypes + (W - prototypes).detach()
@@ -126,7 +132,11 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             predictions = task_model(query[0].to(device), attention_mask=query[2].to(device))
             query_loss = cross_entropy(predictions, query[1].long().squeeze().to(device))
             query_loss.backward()
-            iteration_loss += query_loss.item()
+
+            # record task losses and accuracies for logging
+            task_losses_outer[sampler.get_name()] = query_loss.item()
+            task_accuracies_outer[sampler.get_name()] = sampler.calculate_accuracy(predictions, query[1].to(device))
+            average_query_loss += query_loss.item()
 
             # register W and b parameters again to avoid error in weight update
             W = nn.Parameter(W)
@@ -160,27 +170,50 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
         iterations += 1
         if iterations % args.log_every == 0:
-            iter_loss = iteration_loss / meta_batch_size
-            writer.add_scalar('Meta_Average/Loss/train'.format(sampler.get_name()), iter_loss, iterations)
+            average_query_loss /= args.log_every
+            iter_loss = sum(task_losses_outer.values()) / len(task_losses_outer.values())
+            iter_acc = sum(task_accuracies_outer.values()) / len(task_accuracies_outer.values())
+            writer.add_scalar('Meta_Average/Loss/outer'.format(sampler.get_name()), iter_loss, iterations)
+            writer.add_scalar('Meta_Average/Accuracy/outer'.format(sampler.get_name()), iter_acc, iterations)
             for t in tasks:
-                writer.add_scalar('{}/Loss/train'.format(t.get_name()), task_losses[t.get_name()], iterations)
+                task_name = t.get_name()
+                if task_name in task_losses_inner.keys():
+                    writer.add_scalar('{}/Loss/inner'.format(task_name), task_losses_inner[task_name], iterations)
+                    writer.add_scalar('{}/Accuracy/inner'.format(task_name), task_accuracies_inner[task_name], iterations)
+                    writer.add_scalar('{}/Loss/outer'.format(task_name), task_losses_outer[task_name], iterations)
+                    writer.add_scalar('{}/Accuracy/outer'.format(task_name), task_accuracies_outer[task_name], iterations)
             print(log_template.format(
                 str(timedelta(seconds=int(time.time() - start))),
                 sampler.get_name(),
                 iterations,
-                iter_loss))
+                iter_loss,
+                iter_acc))
+
+            if average_query_loss < best_query_loss:
+                best_query_loss = average_query_loss
+                average_query_loss = 0
+                snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
+                snapshot_path = (
+                        snapshot_prefix +
+                        '_loss_{:.5f}_iter_{}_model.pt'
+                ).format(best_query_loss, iterations)
+                model.save_model(snapshot_path)
+                # Keep only the best snapshot
+                for f in glob.glob(snapshot_prefix + '*'):
+                    if f != snapshot_path:
+                        os.remove(f)
 
         # saving redundant parameters
         # Save model checkpoints.
         if iterations % args.save_every == 0:
-            iter_loss = iteration_loss / meta_batch_size
+            iter_loss = sum(task_losses_outer.values()) / len(task_losses_outer.values())
             snapshot_prefix = os.path.join(args.save_path, 'snapshot')
             snapshot_path = (
                     snapshot_prefix +
                     '_iter_{}_loss_{}_model.pt'
             ).format(iterations, iter_loss)
             logging.debug('Saving model...')
-            model.save(args.unfreeze_num, snapshot_path)
+            model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
@@ -198,10 +231,10 @@ if __name__ == '__main__':
     if args.resume_snapshot:
         print("Loading models from snapshot")
         # TODO find way to pass right number of hidden layers when loading from snapshot
-        model = ProtoMAMLLearner(args, hidden_dims=[500])
+        model = ProtoMAMLLearner(args)
         model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
-        model = ProtoMAMLLearner(args, hidden_dims=[500])
+        model = ProtoMAMLLearner(args)
 
     model.to(device)
     print("Tasks")
@@ -211,4 +244,5 @@ if __name__ == '__main__':
     tasks.append(SarcasmDetection())
     tasks.append(OffensevalTask())
 
-    meta_train(tasks, model, args, device)
+    meta_train(tasks, model, args, device, meta_iters=args.num_iterations,
+               num_updates=args.inner_updates, meta_batch_size=args.meta_batch_size)

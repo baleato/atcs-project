@@ -29,25 +29,33 @@ class TestModels(unittest.TestCase):
             model.__class__.__name__,
             os.stat(self.model_path).st_size >> 20))
 
-    def test_MetaLearner_save_load(self):
+    def test_MultiTaskLearner_save_load(self):
         task = OffensevalTask()
         args = self.args
-        model = MetaLearner(args)
+        model = MultiTaskLearner(args)
         model.add_task_classifier(task.get_name(), task.get_classifier().to(self.device))
-        model.save_model(args.unfreeze_num, self.model_path)
+        model.save_model(self.model_path)
         self.print_model_size(model)
 
-        model2 = MetaLearner(args)
+        model2 = MultiTaskLearner(args)
         model2.load_model(self.model_path, self.device)
         model2.add_task_classifier(task.get_name(), task.get_classifier().to(self.device))
 
         self.check_models(model, model2)
 
-    def test_ProtoMAMLLearner_save_load(self):
-        model = ProtoMAMLLearner(self.args, hidden_dims=[500])
-        model.save_model(self.args.unfreeze_num, self.model_path)
+    def test_PrototypeLearner_save_load(self):
+        model = PrototypeLearner(self.args)
+        model.save_model(self.model_path)
         self.print_model_size(model)
-        model2 = ProtoMAMLLearner(self.args, hidden_dims=[500])
+        model2 = PrototypeLearner(self.args)
+        model2.load_model(self.model_path, self.device)
+        self.check_models(model, model2)
+
+    def test_ProtoMAMLLearner_save_load(self):
+        model = ProtoMAMLLearner(self.args)
+        model.save_model(self.model_path)
+        self.print_model_size(model)
+        model2 = ProtoMAMLLearner(self.args)
         model2.load_model(self.model_path, self.device)
         self.check_models(model, model2)
 
