@@ -3,6 +3,7 @@ import time
 import sys
 import glob
 from datetime import timedelta
+from itertools import chain
 
 from torch import load
 import torch.nn as nn
@@ -14,7 +15,7 @@ from util import (
     save_model)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
-from models import MetaLearner, PrototypeLearner
+from models import PrototypeLearner
 
 from datetime import datetime
 import torch.optim as optim
@@ -61,7 +62,7 @@ def train(tasks, model, args, device):
     # Define logging
     os.makedirs(args.save_path, exist_ok=True)
     writer = SummaryWriter(
-        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":","_")))
+        os.path.join(args.save_path, 'runs', '{}'.format(datetime.now()).replace(":", "_")))
 
     header = '      Time                     Task  Iteration   Progress  %Epoch       ' + \
              'Loss   Dev/Loss     Accuracy      Dev/Acc'
@@ -74,7 +75,9 @@ def train(tasks, model, args, device):
     start = time.time()
 
     # Define optimizers and loss function
-    optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
+    optimizer_bert = optim.Adam(params=model.encoder.bert.parameters(), lr=args.bert_lr)
+    optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters()),
+                           lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
     # TODO maybe find nicer solution for passing(handling) the tokenizer
@@ -82,7 +85,8 @@ def train(tasks, model, args, device):
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
     # initialize task sampler
-    sampler = TaskSampler(tasks, method='random')
+
+    sampler = TaskSampler(tasks, method='random', supp_query_split=True)
 
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     train_iter_len = len(train_iter)
@@ -106,6 +110,7 @@ def train(tasks, model, args, device):
         query_mask = query_tuple[2].to(device)
 
         # Reset .grad attributes for weights
+        optimizer_bert.zero_grad()
         optimizer.zero_grad()
 
 
@@ -129,6 +134,7 @@ def train(tasks, model, args, device):
             raise Exception("Got NaNs in loss function. Happens only sometimes... Investigate why!")
         loss.backward()
         optimizer.step()
+        optimizer_bert.step()
 
         running_loss += loss.item()
         iterations += 1
@@ -155,59 +161,12 @@ def train(tasks, model, args, device):
                     snapshot_prefix +
                     '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
             ).format(acc, loss.item(), iterations)
-            # FIXME: save_model
-            model.save_model(args.unfreeze_num, snapshot_path)
+
+            model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
                     os.remove(f)
-
-    # not sure if needed for meta learning
-    # # ============================ EVALUATION ============================
-    # model.eval()
-    #
-    # # calculate accuracy on validation set
-    # sum_dev_loss, sum_dev_acc = 0, 0
-    # with torch.no_grad():
-    #     for dev_batch in dev_iter:
-    #         sentences = dev_batch[0].to(device)
-    #         labels = dev_batch[1]
-    #         attention_masks = batch[2].to(device)
-    #         outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
-    #         # Loss
-    #         batch_dev_loss = task.get_loss(outputs, labels.to(device))
-    #         sum_dev_loss += batch_dev_loss.item()
-    #         # Accuracy
-    #         acc = task.calculate_accuracy(outputs, labels.to(device))
-    #         sum_dev_acc += acc
-    # dev_acc = sum_dev_acc / dev_iter_len
-    # dev_loss = sum_dev_loss / dev_iter_len
-    #
-    # print(dev_log_template.format(
-    #         str(timedelta(seconds=int(time.time() - start))),
-    #         task.get_name(),
-    #         epoch,
-    #         iterations,
-    #         batch_idx+1, train_iter_len,
-    #         (batch_idx+1) / train_iter_len * 100,
-    #         dev_loss, dev_acc))
-    #
-    # writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
-    # writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
-    #
-    # if best_dev_acc < dev_acc:
-    #     best_dev_acc = dev_acc
-    #     snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
-    #     snapshot_path = (
-    #             snapshot_prefix +
-    #             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-    #         ).format(dev_acc, dev_loss, iterations)
-    #     # FIXME: save_model
-    #     #save_model(model, args.unfreeze_num, snapshot_path)
-    #     # Keep only the best snapshot
-    #     for f in glob.glob(snapshot_prefix + '*'):
-    #         if f != snapshot_path:
-    #             os.remove(f)
 
     writer.close()
 
@@ -220,7 +179,7 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = PrototypeLearner(args, hidden_dims=[500])
+        model = PrototypeLearner(args)
         print("Tasks")
         tasks = []
         for emotion in SemEval18SingleEmotionTask.EMOTIONS:
@@ -235,6 +194,7 @@ if __name__ == '__main__':
             tasks.append(SemEval18SingleEmotionTask(emotion))
         tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
-        model = PrototypeLearner(args, hidden_dims=[500])
+
+        model = PrototypeLearner(args)
     results = train(tasks, model, args, device)
 

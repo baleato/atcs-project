@@ -117,8 +117,8 @@ class EpisodicSampler(torch.utils.data.Sampler):
         return num_labels * max_label
 
 
-def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True, supp_query_split=True):
-    """ expects input_ids, labels, attention_masks to be tensors"""
+def make_dataloader(dataset_id, input_ids, labels, attention_masks, batch_size=16, shuffle=True, episodic=True, supp_query_split=False):
+    """ expects dataset_id, input_ids, labels, attention_masks to be tensors"""
 
     # split data into a support and query set with same label distribution and same labels at the same index
     if supp_query_split:
@@ -127,6 +127,10 @@ def make_dataloader(input_ids, labels, attention_masks, batch_size=16, shuffle=T
     else:
         # Load tensors into torch Dataset object
         dataset = TensorDataset(input_ids, labels, attention_masks)
+
+    # We identify the dataset so its users can distinguish between data distributions.
+    # For instance, to diminish frequency sampling between tasks that reuse the same dataset.
+    dataset.id = dataset_id
 
     # Determine what sampling mode should be used
     if shuffle:
@@ -205,36 +209,39 @@ def parse_nonlinearity(nonlinearity_str):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--dataset_root', type=str,
-                        default=os.path.join(os.getcwd(), '.data'))
     parser.add_argument('--save_path', type=str, default='results')
     parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--freeze_bert', default=False, action='store_true')
     parser.add_argument('--unfreeze_num', type=int, default=2)
+    parser.add_argument('--mlp_dims', nargs='+', type=int, default=[768])
+    parser.add_argument('--mlp_dropout', type=float, default=0)
+    parser.add_argument('--mlp_activation', default='ReLU', choices=['ReLU', 'Tanh'])
     parser.add_argument('--resume_snapshot', type=str, default='')
     parser.add_argument('--num_iterations', type=int, default=10000)
     parser.add_argument('--save_every', type=int, default=200)
     parser.add_argument('--eval_every', type=int, default=100)
     parser.add_argument('--log_every', type=int, default=10)
-    parser.add_argument('--dp_ratio', type=int, default=0.2)
+    parser.add_argument('--bert_lr', type=float, default=5e-5)
     parser.add_argument('--lr', type=float, default=5e-5)
     args = parser.parse_args()
     return args
 
+
 def get_args_meta():
     parser = ArgumentParser()
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--dataset_root', type=str,
-                        default=os.path.join(os.getcwd(), '.data'))
     parser.add_argument('--save_path', type=str, default='results')
-    parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--freeze_bert', default=False, action='store_true')
+    parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--unfreeze_num', type=int, default=2)
+    parser.add_argument('--mlp_dims', nargs='+', type=int, default=[768])
+    parser.add_argument('--mlp_dropout', type=float, default=0)
+    parser.add_argument('--mlp_activation', default='ReLU', choices=['ReLU', 'Tanh'])
     parser.add_argument('--resume_snapshot', type=str, default='')
-    parser.add_argument('--max_epochs', type=int, default=5)
+    parser.add_argument('--num_iterations', type=int, default=10000)
+    parser.add_argument('--meta_batch_size', type=int, default=5)
+    parser.add_argument('--inner_updates', type=int, default=5)
     parser.add_argument('--save_every', type=int, default=200)
     parser.add_argument('--log_every', type=int, default=10)
-    parser.add_argument('--dp_ratio', type=int, default=0.2)
+    parser.add_argument('--bert_lr', type=float, default=5e-5)
     parser.add_argument('--lr', type=float, default=5e-5)
     parser.add_argument('--inner_lr', type=float, default=1e-3)
     args = parser.parse_args()

@@ -27,8 +27,16 @@ Overview of datasets files:
 ```tree
 data/
 ├── download.sh
-├── offenseval
-│   └── offenseval-training-v1.tsv
+├── OLIDv1.0
+│   ├── README.txt
+│   ├── labels-levela.csv
+│   ├── labels-levelb.csv
+│   ├── labels-levelc.csv
+│   ├── olid-annotation.txt
+│   ├── olid-training-v1.0.tsv
+│   ├── testset-levela.tsv
+│   ├── testset-levelb.tsv
+│   └── testset-levelc.tsv
 ├── semeval18_task1_class
 │   ├── dev.txt
 │   ├── test.txt
@@ -38,6 +46,14 @@ data/
 └── twitter
     └── sarcasm_detection_shared_task_twitter_training.jsonl
 ```
+
+## Models
+
+All models share the encoder (composed by BERT and a multi-layer perceptron on top). Training is performed on the MLP and the last layers of BERT. Different learning rates can be configured, as well as other parameters from the MLP; namely: size, depth, dropout ratio and activation function.
+
+- MultiTaskLearner: adds task-dependent single linear layers on top of the _encoder_.
+- PrototypeLearner: uses the _encoder_ to learn a set of embeddings to classify an example based on class centroids previously calculated.
+- ProtoMAMLLearner: extends the _PrototypeLearner_ with an task-independent linear layer.
 
 ## Running examples
 
