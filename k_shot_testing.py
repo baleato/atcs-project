@@ -68,13 +68,20 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
             accuracies = []
             batches_tested = 0
             for batch in test_iter:
-                predictions = model(batch[0].to(device), attention_mask=batch[2].to(device))
-                acc = accuracy_score(batch[1], predictions.argmax(dim=1).cpu())
+                if isinstance(model, MultiTaskLearner):
+                    predictions = model(batch[0].to(device), test_task.get_name(), attention_mask=batch[2].to(device))
+                elif isinstance(model, PrototypeLearner):
+                    predictions = model(batch[0].to(device), attention_mask=batch[2].to(device))
+                    centroids = model.calculate_centroids((predictions, batch[1]), test_task.num_classes)
+                    predictions = -model.calculate_distances(predictions, centroids)
+                else:
+                    predictions = model(batch[0].to(device), attention_mask=batch[2].to(device))
+                acc = test_task.calculate_accuracy(predictions, batch[1].to(device))
                 accuracies.append(acc)
                 batches_tested += 1
                 if batches_tested == num_test_batches:
                     break
-            episode_accs.append(np.asarray(accuracies).mean())
+        episode_accs.append(np.asarray(accuracies).mean())
 
     return np.asarray(episode_accs).mean(), np.asarray(episode_accs).std()
 
@@ -110,17 +117,18 @@ if __name__ == '__main__':
     elif args.model == 'ProtoMAML':
         model = ProtoMAMLLearner(args)
     else:
+        model = None
         RuntimeError('Unknown model type!')
-    model.load_model(args.model_path, device)
+    #model.load_model(args.model_path, device)
     model.eval()
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     if not args.episodes == '':
-        episodes = pickle.load(open(args.episodes, "rb"))
+        episodes = torch.load(open(args.episodes, "rb"), map_location=device)
     else:
         episodes = sample_episodes(args.k, task, tokenizer, args.generate_episodes)
         random_id = int(np.random.randint(0, 10000, 1))
-        pickle.dump(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
+        torch.save(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
 
     mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches, lr=args.lr)
     print("Mean accuracy: {}, standard deviation: {}".format(mean, stddev))
