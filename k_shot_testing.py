@@ -1,5 +1,4 @@
 import os
-import pickle
 
 from transformers import BertTokenizer, AdamW
 
@@ -30,7 +29,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
 
     episode_accs = []
     for episode in episodes:
-        # setup output layer for ProtoMAML
+        # setup output layer for ProtoMAML and MTL
         if isinstance(model, ProtoMAMLLearner):
             proto_embeddings = model.proto_net(episode[0].to(device), attention_mask=episode[2].to(device))
             prototypes = model.proto_net.calculate_centroids((proto_embeddings, episode[1]), test_task.num_classes)
@@ -55,7 +54,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
             # compute loss depending on model type
             if isinstance(model, PrototypeLearner):
                 centroids = model.calculate_centroids((predictions, episode[1]), test_task.num_classes)
-                distances = model.calculate_distances(predictions, centroids)
+                distances = model.compute_distance(predictions, centroids)
                 loss = cross_entropy(-distances, episode[1].long().squeeze().to(device))
             else:
                 loss = cross_entropy(predictions, episode[1].long().squeeze().to(device))
@@ -72,8 +71,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
                     predictions = model(batch[0].to(device), test_task.get_name(), attention_mask=batch[2].to(device))
                 elif isinstance(model, PrototypeLearner):
                     predictions = model(batch[0].to(device), attention_mask=batch[2].to(device))
-                    centroids = model.calculate_centroids((predictions, batch[1]), test_task.num_classes)
-                    predictions = -model.calculate_distances(predictions, centroids)
+                    predictions = -model.compute_distance(predictions, centroids)
                 else:
                     predictions = model(batch[0].to(device), attention_mask=batch[2].to(device))
                 acc = test_task.calculate_accuracy(predictions, batch[1].to(device))
