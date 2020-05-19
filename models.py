@@ -105,13 +105,10 @@ class PrototypeLearner(nn.Module):
     def __init__(self, config, input_dim=768, target_dim=500, nonlinearity='ReLU', dropout=0.0):
         super(PrototypeLearner, self).__init__()
         self.encoder = Encoder(config)
-        # TODO: revisit whether PrototypeLearner should use SLClassifier or just the encoder
-        self.classifier_layer = SLClassifier(input_dim, target_dim)
 
     def forward(self, inputs, attention_mask=None):
         encoded = self.encoder(inputs, attention_mask=attention_mask)
-        out = self.classifier_layer(encoded)
-        return out
+        return encoded
 
     def calculate_centroids(self, support, num_classes):
         support, support_labels = support
@@ -130,14 +127,12 @@ class PrototypeLearner(nn.Module):
 
     def save_model(self, snapshot_path):
         state_dicts = self.encoder.get_trainable_params()
-        state_dicts['outputlayer_state_dict'] = self.classifier_layer.state_dict()
         torch.save(state_dicts, snapshot_path)
 
     def load_model(self, path, device):
         # Load dictionary with BERT and MLP state_dicts
         checkpoint = torch.load(path, map_location=device)
         self.encoder.load_trainable_params(checkpoint)
-        self.classifier_layer.load_state_dict(checkpoint['outputlayer_state_dict'])
 
 
 class ProtoMAMLLearner(nn.Module):
