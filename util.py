@@ -274,7 +274,7 @@ def get_test_args():
     parser.add_argument('--mlp_dims', nargs='+', type=int, default=[768])
     parser.add_argument('--mlp_dropout', type=float, default=0)
     parser.add_argument('--mlp_activation', default='ReLU', choices=['ReLU', 'Tanh'])
-    parser.add_argument('--task', type=str, default='OffenseEval')
+    parser.add_argument('--task', type=str, default='SentimentAnalysis')
     parser.add_argument('--k', type=int, default=4)
     parser.add_argument('--episodes', type=str, default='')
     parser.add_argument('--generate_episodes', type=int, default=10)

@@ -95,9 +95,8 @@ if __name__ == '__main__':
 
     os.makedirs(args.save_path, exist_ok=True)
 
-    # TODO replace with options of test datasets
-    if args.task == 'OffenseEval':
-        task = OffensevalTask()
+    if args.task == 'SentimentAnalysis':
+        task = SentimentAnalysis()
     else:
         task = None
         RuntimeError('Unknown evaluation task!')
