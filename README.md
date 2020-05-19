@@ -52,7 +52,7 @@ data/
 All models share the encoder (composed by BERT and a multi-layer perceptron on top). Training is performed on the MLP and the last layers of BERT. Different learning rates can be configured, as well as other parameters from the MLP; namely: size, depth, dropout ratio and activation function.
 
 - MultiTaskLearner: adds task-dependent single linear layers on top of the _encoder_.
-- PrototypeLearner: uses a task-independent linear layer on top of the _encoder_ to learn a set of embeddings to classify an example based on class centroids previously calculated.
+- PrototypeLearner: uses the _encoder_ to learn a set of embeddings to classify an example based on class centroids previously calculated.
 - ProtoMAMLLearner: extends the _PrototypeLearner_ with an task-independent linear layer.
 
 ## Running examples
