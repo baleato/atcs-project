@@ -95,7 +95,6 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             # new optimizer for every new task model
             task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
             task_optimizer = optim.SGD(params=chain(task_model.proto_net.encoder.mlp.parameters(),
-                                                    task_model.proto_net.classifier_layer.parameters(),
                                                     task_model.output_layer.parameters()),
                                        lr=args.inner_lr)
 
