@@ -26,7 +26,7 @@ if [[ ! -f WaseemHovy.zip ]]; then
 fi
 
 # Sentiment Classification; data/sem_eval_2015
-if [[ ! -f sem_eval_2015/tweets_output.txt ]]; then
-  mkdir -p sem_eval_2015
-  curl -Lo sem_eval_2015/tweets_output.txt 'https://drive.google.com/uc?export=download&id=10G4Owb12txUo1HZqkwaxJ69-GHyWvPKN'
+if [[ ! -f tweets_output.zip ]]; then
+  curl -Lo tweets_output.zip 'https://drive.google.com/uc?export=download&id=10G4Owb12txUo1HZqkwaxJ69-GHyWvPKN'
+  unzip tweets_output.zip  -d sem_eval_2015
 fi

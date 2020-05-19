@@ -351,7 +351,7 @@ class SentimentAnalysis(Task):
             Iterable for the specified split
         """
         # current iter will have only two classes; we could extend it to have more
-        df = pd.read_csv('data/tweets_output.txt',header=None, sep='\t', names=['ID1', 'ID2', 'label','sentence'])
+        df = pd.read_csv('data/sem_eval_2015/tweets_output.txt',header=None, sep='\t', names=['ID1', 'ID2', 'label','sentence'])
         df = df[df.label != 'neutral']
         df = df[df.label != 'objective']
         df = df[df.label != 'objective-OR-neutral']

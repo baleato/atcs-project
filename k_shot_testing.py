@@ -11,7 +11,7 @@ import torch.optim as optim
 import torch.nn as nn
 
 
-def k_shot_testing(model, episodes, test_task, device, num_classes=2, num_updates=5, num_test_batches=None, lr=5e-5, zero_init=False):
+def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=5e-5, zero_init=False):
     # get iterator over test task
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     test_iter = test_task.get_iter('test', tokenizer, shuffle=False)
@@ -33,7 +33,7 @@ def k_shot_testing(model, episodes, test_task, device, num_classes=2, num_update
         # setup output layer for ProtoMAML
         if isinstance(model, ProtoMAMLLearner):
             proto_embeddings = model.proto_net(episode[0].to(device), attention_mask=episode[2].to(device))
-            prototypes = model.proto_net.calculate_centroids((proto_embeddings, episode[1]), num_classes)
+            prototypes = model.proto_net.calculate_centroids((proto_embeddings, episode[1]), test_task.num_classes)
             W, b = model.calculate_output_params(prototypes.detach())
             model.initialize_classifier(W, b)
         elif zero_init and isinstance(model, MultiTaskLearner):
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         model = ProtoMAMLLearner(args)
     else:
         RuntimeError('Unknown model type!')
-    #model.load_model(args.model_path, device)
+    model.load_model(args.model_path, device)
     model.eval()
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
@@ -122,5 +122,5 @@ if __name__ == '__main__':
         random_id = int(np.random.randint(0, 10000, 1))
         pickle.dump(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
 
-    mean, stddev = k_shot_testing(model, episodes, task, device, task.num_classes, args.num_test_batches, args.num_updates, lr=args.lr)
+    mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches, lr=args.lr)
     print("Mean accuracy: {}, standard deviation: {}".format(mean, stddev))
