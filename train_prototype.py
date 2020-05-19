@@ -21,42 +21,6 @@ from datetime import datetime
 import torch.optim as optim
 
 
-def meta_train():
-    """
-    We'll start with binary classifiers (2-way classification)
-    for step in range(num_steps):
-        # Training
-        for i in num_samples:
-            task_batch_train := Sample tasks based on meta_batch_size (training set) (and task frequencies)
-            for task in task_batch_train:
-                forward
-                loss
-                backward
-
-        # Meta-training
-        if step % meta_every == 0:
-            task_batch_test :=  Sample tasks not included in task_batch_train
-                                meta_batch_test_size (> meta_batch_size, all?)
-            for task in task_batch_test:
-                forward
-                loss
-                backward
-
-    params:
-        - tasks
-        - num_classes: number of classes (N in N-way classification.). Default 2.
-        - num_samples: examples for inner gradient update (K in K-shotlearning).
-        - meta_batch_size: number of N-way tasks per batch
-    """
-    pass
-
-def compute_distance(samples, centroids):
-    # compute distances
-    distances = torch.ones(samples.shape[0], 2)
-    for i in range(distances.shape[1]):
-        distances[:, i] = torch.norm(samples - centroids[i], dim=1)
-    return distances
-
 
 def train(tasks, model, args, device):
     # Define logging
@@ -76,7 +40,7 @@ def train(tasks, model, args, device):
 
     # Define optimizers and loss function
     optimizer_bert = optim.Adam(params=model.encoder.bert.parameters(), lr=args.bert_lr)
-    optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters(),
+    optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters()),
                            lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
@@ -85,6 +49,7 @@ def train(tasks, model, args, device):
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
     # initialize task sampler
+
     sampler = TaskSampler(tasks, method='random', supp_query_split=True)
 
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
@@ -121,7 +86,7 @@ def train(tasks, model, args, device):
         centroids = model.calculate_centroids((support_embedding, support_labels), sampler.get_task(train_iter.get_task_index()).num_classes)#, query_labels, train_iter, task)
 
         query_embedding = model(query, attention_mask=query_mask)
-        distances = compute_distance(query_embedding, centroids)
+        distances = model.compute_distance(query_embedding, centroids)
 
         #predictions = torch.nn.functional.softmax(-distances, dim=1).argmax(dim=1)  # according to equation 2 in the paper
 
@@ -160,58 +125,12 @@ def train(tasks, model, args, device):
                     snapshot_prefix +
                     '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
             ).format(acc, loss.item(), iterations)
+
             model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
                     os.remove(f)
-
-    # not sure if needed for meta learning
-    # # ============================ EVALUATION ============================
-    # model.eval()
-    #
-    # # calculate accuracy on validation set
-    # sum_dev_loss, sum_dev_acc = 0, 0
-    # with torch.no_grad():
-    #     for dev_batch in dev_iter:
-    #         sentences = dev_batch[0].to(device)
-    #         labels = dev_batch[1]
-    #         attention_masks = batch[2].to(device)
-    #         outputs = model(sentences, task.get_name(), attention_mask=attention_masks)
-    #         # Loss
-    #         batch_dev_loss = task.get_loss(outputs, labels.to(device))
-    #         sum_dev_loss += batch_dev_loss.item()
-    #         # Accuracy
-    #         acc = task.calculate_accuracy(outputs, labels.to(device))
-    #         sum_dev_acc += acc
-    # dev_acc = sum_dev_acc / dev_iter_len
-    # dev_loss = sum_dev_loss / dev_iter_len
-    #
-    # print(dev_log_template.format(
-    #         str(timedelta(seconds=int(time.time() - start))),
-    #         task.get_name(),
-    #         epoch,
-    #         iterations,
-    #         batch_idx+1, train_iter_len,
-    #         (batch_idx+1) / train_iter_len * 100,
-    #         dev_loss, dev_acc))
-    #
-    # writer.add_scalar('{}/Accuracy/dev'.format(task.get_name()), dev_acc, iterations)
-    # writer.add_scalar('{}/Loss/dev'.format(task.get_name()), dev_loss, iterations)
-    #
-    # if best_dev_acc < dev_acc:
-    #     best_dev_acc = dev_acc
-    #     snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
-    #     snapshot_path = (
-    #             snapshot_prefix +
-    #             '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
-    #         ).format(dev_acc, dev_loss, iterations)
-    #     # FIXME: save_model
-    #     #save_model(model, args.unfreeze_num, snapshot_path)
-    #     # Keep only the best snapshot
-    #     for f in glob.glob(snapshot_prefix + '*'):
-    #         if f != snapshot_path:
-    #             os.remove(f)
 
     writer.close()
 
@@ -239,5 +158,7 @@ if __name__ == '__main__':
             tasks.append(SemEval18SingleEmotionTask(emotion))
         tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
+
         model = PrototypeLearner(args)
     results = train(tasks, model, args, device)
+
