@@ -33,6 +33,7 @@ class Encoder(nn.Module):
     def forward(self, inputs, attention_mask=None):
         encoded = self.bert(inputs, attention_mask=attention_mask)[0]
         cls_token_enc = encoded[:, 0, :]
+        out = self.mlp(cls_token_enc)
         return cls_token_enc
 
     def get_trainable_params(self):
