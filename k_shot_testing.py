@@ -5,13 +5,17 @@ from transformers import BertTokenizer, AdamW
 
 from util import get_test_args, get_pytorch_device, load_model
 from tasks import *
-from models import MetaLearner, PrototypeLearner, ProtoMAMLLearner
+from models import MultiTaskLearner, PrototypeLearner, ProtoMAMLLearner
 
 import torch.optim as optim
 import torch.nn as nn
 
 
-def k_shot_testing(model, episodes, test_iter, device, num_classes=2, num_updates=5, lr=5e-5):
+def k_shot_testing(model, episodes, test_task, device, num_classes=2, num_updates=5, lr=5e-5, zero_init=False):
+    # get iterator over test task
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+    test_iter = test_task.get_iter('test', tokenizer, shuffle=False)
+
     # Define optimizers and loss function
     optimizer = optim.SGD(params=model.parameters(), lr=lr)
     cross_entropy = nn.CrossEntropyLoss()
@@ -21,17 +25,36 @@ def k_shot_testing(model, episodes, test_iter, device, num_classes=2, num_update
     for episode in episodes:
         episode_accs = []
 
-        # setup output layer
-        proto_embeddings = model.proto_net(episode[0].to(device), attention_mask=episode[2].to(device))
-        prototypes = model.proto_net.calculate_centroids((proto_embeddings, episode[1]), num_classes)
-        W, b = model.calculate_output_params(prototypes.detach())
-        model.initialize_classifier(W, b)
+        # setup output layer for ProtoMAML
+        if isinstance(model, ProtoMAMLLearner):
+            proto_embeddings = model.proto_net(episode[0].to(device), attention_mask=episode[2].to(device))
+            prototypes = model.proto_net.calculate_centroids((proto_embeddings, episode[1]), num_classes)
+            W, b = model.calculate_output_params(prototypes.detach())
+            model.initialize_classifier(W, b)
+        elif zero_init and isinstance(model, MultiTaskLearner):
+            task_module_name = 'task_{}'.format(test_task.get_name())
+            out_MTL_layer = model._modules[task_module_name]
+            out_MTL_layer.weight.data = torch.zeros_like(out_MTL_layer.weight.data)
+            out_MTL_layer.bias.data = torch.zeros_like(out_MTL_layer.bias.data)
 
         # fine-tune model with some updates on the provided episode
         for update in range(num_updates):
             optimizer.zero_grad()
-            predictions = model(episode[0].to(device), attention_mask=episode[2].to(device))
-            loss = cross_entropy(predictions, episode[1].long().squeeze().to(device))
+
+            # get predictions depending on model type
+            if isinstance(model, MultiTaskLearner):
+                predictions = model(episode[0].to(device), test_task.get_name(), attention_mask=episode[2].to(device))
+            else:
+                predictions = model(episode[0].to(device), attention_mask=episode[2].to(device))
+
+            # compute loss depending on model type
+            if isinstance(model, PrototypeLearner):
+                centroids = model.calculate_centroids((predictions, episode[1]), test_task.num_classes)
+                distances = model.calculate_distances(predictions, centroids)
+                loss = cross_entropy(-distances, episode[1].long().squeeze().to(device))
+            else:
+                loss = cross_entropy(predictions, episode[1].long().squeeze().to(device))
+
             loss.backward()
             optimizer.step()
 
@@ -63,23 +86,25 @@ if __name__ == '__main__':
 
     os.makedirs(args.save_path, exist_ok=True)
 
+    # TODO replace with options of test datasets
+    if args.task == 'OffenseEval':
+        task = OffensevalTask()
+    else:
+        task = None
+        RuntimeError('Unknown evaluation task!')
+
     print("Loading model from snapshot")
     if args.model == 'MTL':
-        model = MetaLearner(args)
+        model = MultiTaskLearner(args)
+        model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
     elif args.model == 'ProtoNet':
         model = PrototypeLearner(args)
     elif args.model == 'ProtoMAML':
         model = ProtoMAMLLearner(args)
     else:
         RuntimeError('Unknown model type!')
-    model.load_model(args.model_path, device)
+    #model.load_model(args.model_path, device)
     model.eval()
-
-    # TODO replace with options of test datasets
-    if args.task == 'OffenseEval':
-        task = OffensevalTask()
-    else:
-        RuntimeError('Unknown evaluation task!')
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     if not args.episodes == '':
@@ -89,7 +114,5 @@ if __name__ == '__main__':
         random_id = int(np.random.randint(0, 10000, 1))
         pickle.dump(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
 
-    test_iter = task.get_iter('test', tokenizer, shuffle=False)
-
-    mean, stddev = k_shot_testing(model, episodes, test_iter, device, task.num_classes, args.num_updates, lr=args.lr)
+    mean, stddev = k_shot_testing(model, episodes, task, device, task.num_classes, args.num_updates, lr=args.lr)
     print("Mean accuracy: {}, standard deviation: {}".format(mean, stddev))
