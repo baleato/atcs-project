@@ -295,7 +295,6 @@ class SarcasmDetection(Task):
         self.fn_tokenizer = fn_tokenizer
 
 
-
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
         Returns an iterable over the single
@@ -339,7 +338,7 @@ class SentimentAnalysis(Task):
 
     def __init__(self, fn_tokenizer=bert_tokenizer):
         self.num_classes = 2
-        self.classifier = MLPClassifier(target_dim=self.num_classes)
+        self.classifier = SLClassifier(target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
 
