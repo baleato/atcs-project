@@ -57,8 +57,11 @@ def train(tasks, model, args, device):
     model.train()
 
     # setup test model, task and episodes for evaluation
-    test_model = type(model)(args)
     test_task = SentimentAnalysis()
+    test_model = type(model)(args)
+    test_model.add_task_classifier(test_task.get_name(), test_task.get_classifier().to(device))
+    output_layer_name = 'task_{}'.format(test_task.get_name())
+    output_layer_init = test_model._modules[output_layer_name].state_dict()
     episodes = torch.load(args.episodes)
 
     best_dev_acc = -1
@@ -171,7 +174,9 @@ def train(tasks, model, args, device):
                         os.remove(f)
 
             # evaluate in k shot fashion
-            test_model.load_state_dict(model.state_dict())
+            test_model.encoder.load_state_dict(model.encoder.state_dict())
+            # ensure same output layer init for comparability
+            test_model._modules[output_layer_name].load_state_dict(output_layer_init)
             test_mean, _ = k_shot_testing(test_model, episodes, test_task, device,
                                           num_test_batches=args.num_test_batches)
             if test_mean > best_test_mean:
