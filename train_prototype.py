@@ -3,6 +3,7 @@ import time
 import sys
 import glob
 from datetime import timedelta
+from itertools import chain
 
 from torch import load
 import torch.nn as nn
@@ -14,7 +15,7 @@ from util import (
     save_model)
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
-from models import MetaLearner, PrototypeLearner
+from models import PrototypeLearner
 
 from datetime import datetime
 import torch.optim as optim
@@ -74,7 +75,9 @@ def train(tasks, model, args, device):
     start = time.time()
 
     # Define optimizers and loss function
-    optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
+    optimizer_bert = optim.Adam(params=model.encoder.bert.parameters(), lr=args.bert_lr)
+    optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters(),
+                           lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
     # TODO maybe find nicer solution for passing(handling) the tokenizer
@@ -106,6 +109,7 @@ def train(tasks, model, args, device):
         query_mask = query_tuple[2].to(device)
 
         # Reset .grad attributes for weights
+        optimizer_bert.zero_grad()
         optimizer.zero_grad()
 
 
@@ -129,6 +133,7 @@ def train(tasks, model, args, device):
             raise Exception("Got NaNs in loss function. Happens only sometimes... Investigate why!")
         loss.backward()
         optimizer.step()
+        optimizer_bert.step()
 
         running_loss += loss.item()
         iterations += 1
@@ -155,8 +160,7 @@ def train(tasks, model, args, device):
                     snapshot_prefix +
                     '_acc_{:.4f}_loss_{:.6f}_iter_{}_model.pt'
             ).format(acc, loss.item(), iterations)
-            # FIXME: save_model
-            model.save_model(args.unfreeze_num, snapshot_path)
+            model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
@@ -220,7 +224,7 @@ if __name__ == '__main__':
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
-        model = PrototypeLearner(args, hidden_dims=[500])
+        model = PrototypeLearner(args)
         print("Tasks")
         tasks = []
         for emotion in SemEval18SingleEmotionTask.EMOTIONS:
@@ -235,6 +239,5 @@ if __name__ == '__main__':
             tasks.append(SemEval18SingleEmotionTask(emotion))
         tasks.append(SarcasmDetection())
         tasks.append(OffensevalTask())
-        model = PrototypeLearner(args, hidden_dims=[500])
+        model = PrototypeLearner(args)
     results = train(tasks, model, args, device)
-

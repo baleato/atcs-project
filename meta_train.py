@@ -69,7 +69,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     print('done.')
 
     sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio, supp_query_split=True)
-    task_model = type(model)(args, hidden_dims=[500])
+    task_model = type(model)(args)
 
     iterations = 0
     # Iterate over the data
@@ -93,8 +93,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             task_model.train()
 
             # new optimizer for every new task model
-            task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.parameters(), lr=args.lr)
-            task_optimizer = optim.SGD(params=chain(task_model.proto_net.classifier_layer.parameters(),
+            task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
+            task_optimizer = optim.SGD(params=chain(task_model.proto_net.encoder.mlp.parameters(),
                                                     task_model.output_layer.parameters()),
                                        lr=args.inner_lr)
 
@@ -197,7 +197,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                         snapshot_prefix +
                         '_loss_{:.5f}_iter_{}_model.pt'
                 ).format(best_query_loss, iterations)
-                model.save_model(args.unfreeze_num, snapshot_path)
+                model.save_model(snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
@@ -213,7 +213,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                     '_iter_{}_loss_{}_model.pt'
             ).format(iterations, iter_loss)
             logging.debug('Saving model...')
-            model.save_model(args.unfreeze_num, snapshot_path)
+            model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
@@ -231,10 +231,10 @@ if __name__ == '__main__':
     if args.resume_snapshot:
         print("Loading models from snapshot")
         # TODO find way to pass right number of hidden layers when loading from snapshot
-        model = ProtoMAMLLearner(args, hidden_dims=[500])
+        model = ProtoMAMLLearner(args)
         model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
-        model = ProtoMAMLLearner(args, hidden_dims=[500])
+        model = ProtoMAMLLearner(args)
 
     model.to(device)
     print("Tasks")
