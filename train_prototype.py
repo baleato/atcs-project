@@ -77,7 +77,6 @@ def train(tasks, model, args, device):
     # Define optimizers and loss function
     optimizer_bert = optim.Adam(params=model.encoder.bert.parameters(), lr=args.bert_lr)
     optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters(),
-                                        model.classifier_layer.parameters()),
                            lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
