@@ -21,42 +21,6 @@ from datetime import datetime
 import torch.optim as optim
 
 
-def meta_train():
-    """
-    We'll start with binary classifiers (2-way classification)
-    for step in range(num_steps):
-        # Training
-        for i in num_samples:
-            task_batch_train := Sample tasks based on meta_batch_size (training set) (and task frequencies)
-            for task in task_batch_train:
-                forward
-                loss
-                backward
-
-        # Meta-training
-        if step % meta_every == 0:
-            task_batch_test :=  Sample tasks not included in task_batch_train
-                                meta_batch_test_size (> meta_batch_size, all?)
-            for task in task_batch_test:
-                forward
-                loss
-                backward
-
-    params:
-        - tasks
-        - num_classes: number of classes (N in N-way classification.). Default 2.
-        - num_samples: examples for inner gradient update (K in K-shotlearning).
-        - meta_batch_size: number of N-way tasks per batch
-    """
-    pass
-
-def compute_distance(samples, centroids):
-    # compute distances
-    distances = torch.ones(samples.shape[0], 2)
-    for i in range(distances.shape[1]):
-        distances[:, i] = torch.norm(samples - centroids[i], dim=1)
-    return distances
-
 
 def train(tasks, model, args, device):
     # Define logging
@@ -122,7 +86,7 @@ def train(tasks, model, args, device):
         centroids = model.calculate_centroids((support_embedding, support_labels), sampler.get_task(train_iter.get_task_index()).num_classes)#, query_labels, train_iter, task)
 
         query_embedding = model(query, attention_mask=query_mask)
-        distances = compute_distance(query_embedding, centroids)
+        distances = model.compute_distance(query_embedding, centroids)
 
         #predictions = torch.nn.functional.softmax(-distances, dim=1).argmax(dim=1)  # according to equation 2 in the paper
 
