@@ -34,7 +34,7 @@ class Encoder(nn.Module):
         encoded = self.bert(inputs, attention_mask=attention_mask)[0]
         cls_token_enc = encoded[:, 0, :]
         out = self.mlp(cls_token_enc)
-        return cls_token_enc
+        return out
 
     def get_trainable_params(self):
         # Copy instance of model to avoid mutation while training
