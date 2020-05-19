@@ -102,7 +102,7 @@ class SLClassifier(nn.Module):
 
 
 class PrototypeLearner(nn.Module):
-    def __init__(self, config, input_dim=768, target_dim=500, nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config, input_dim=768, nonlinearity='ReLU', dropout=0.0):
         super(PrototypeLearner, self).__init__()
         self.encoder = Encoder(config)
 
@@ -136,10 +136,10 @@ class PrototypeLearner(nn.Module):
 
 
 class ProtoMAMLLearner(nn.Module):
-    def __init__(self, config, input_dim=768, target_dim=500, nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config, input_dim=768, nonlinearity='ReLU', dropout=0.0):
         super(ProtoMAMLLearner, self).__init__()
-        self.proto_net = PrototypeLearner(config, input_dim, target_dim, nonlinearity, dropout)
-        self.output_layer = nn.Linear(target_dim, 2)
+        self.proto_net = PrototypeLearner(config, input_dim, nonlinearity, dropout)
+        self.output_layer = nn.Linear(config.mlp_dims[-1], 2)
 
     def calculate_output_params(self, prototypes):
         W = 2 * prototypes
@@ -166,12 +166,10 @@ class ProtoMAMLLearner(nn.Module):
 
     def save_model(self, snapshot_path):
         # Copy instance of model to avoid mutation while training
-        proto_net_classifier = deepcopy(self.proto_net.classifier_layer)
         classifier = deepcopy(self.output_layer)
 
         # Delete frozen layers from model_copy instance, save state_dicts
         state_dicts = self.proto_net.encoder.get_trainable_params()
-        state_dicts['proto_net_classifier_state_dict'] = proto_net_classifier.state_dict()
         state_dicts['output_layer_state_dict'] = classifier.state_dict()
 
         torch.save(state_dicts, snapshot_path)
@@ -179,5 +177,4 @@ class ProtoMAMLLearner(nn.Module):
     def load_model(self, path, device):
         checkpoint = torch.load(path, map_location=device)
         self.proto_net.encoder.load_trainable_params(checkpoint)
-        self.proto_net.classifier_layer.load_state_dict(checkpoint['proto_net_classifier_state_dict'])
         self.output_layer.load_state_dict(checkpoint['output_layer_state_dict'])
