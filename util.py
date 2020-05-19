@@ -235,6 +235,8 @@ def get_args():
     parser.add_argument('--log_every', type=int, default=10)
     parser.add_argument('--bert_lr', type=float, default=5e-5)
     parser.add_argument('--lr', type=float, default=5e-5)
+    parser.add_argument('--num_test_batches', type=int, default=10)
+    parser.add_argument('--episodes', type=str, default='data/sentiment_episodes_k8.pkl')
     args = parser.parse_args()
     return args
 
@@ -254,9 +256,12 @@ def get_args_meta():
     parser.add_argument('--inner_updates', type=int, default=5)
     parser.add_argument('--save_every', type=int, default=200)
     parser.add_argument('--log_every', type=int, default=10)
+    parser.add_argument('--eval_every', type=int, default=300)
     parser.add_argument('--bert_lr', type=float, default=5e-5)
     parser.add_argument('--lr', type=float, default=5e-5)
     parser.add_argument('--inner_lr', type=float, default=1e-3)
+    parser.add_argument('--num_test_batches', type=int, default=10)
+    parser.add_argument('--episodes', type=str, default='data/sentiment_episodes_k8.pkl')
     args = parser.parse_args()
     return args
 

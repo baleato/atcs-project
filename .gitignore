@@ -3,6 +3,7 @@ __pycache__
 
 data
 ^data/download.sh
+^data/sentiment_episodes_k8.pkl
 results
 .idea/
 .ipynb_checkpoints/

@@ -10,9 +10,8 @@ import torch.nn as nn
 import torch
 from transformers import BertTokenizer, AdamW
 
-from util import (
-    get_args, get_pytorch_device, get_model, load_model,
-    save_model)
+from util import get_args, get_pytorch_device
+from k_shot_testing import k_shot_testing
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import MultiTaskLearner
@@ -57,8 +56,14 @@ def train(tasks, model, args, device):
     train_iter_len = len(train_iter)
     model.train()
 
+    # setup test model, task and episodes for evaluation
+    test_model = type(model)(args)
+    test_task = SentimentAnalysis()
+    episodes = torch.load(args.episodes)
+
     best_dev_acc = -1
     iterations, running_loss = 0, 0.0
+    best_test_mean = -1
     for i in range(args.num_iterations):
 
         batch = next(train_iter)
@@ -159,6 +164,23 @@ def train(tasks, model, args, device):
                         snapshot_prefix +
                         '_acc_{:.4f}_iter_{}_model.pt'
                     ).format(mean_dev_acc, iterations)
+                model.save_model(snapshot_path)
+                # Keep only the best snapshot
+                for f in glob.glob(snapshot_prefix + '*'):
+                    if f != snapshot_path:
+                        os.remove(f)
+
+            # evaluate in k shot fashion
+            test_model.load_state_dict(model.state_dict())
+            test_mean, _ = k_shot_testing(test_model, episodes, test_task, device,
+                                          num_test_batches=args.num_test_batches)
+            if test_mean > best_test_mean:
+                best_test_mean = test_mean
+                snapshot_prefix = os.path.join(args.save_path, 'best_test')
+                snapshot_path = (
+                        snapshot_prefix +
+                        '_loss_{:.5f}_iter_{}_model.pt'
+                ).format(best_test_mean, iterations)
                 model.save_model(snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):

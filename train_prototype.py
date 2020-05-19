@@ -10,9 +10,8 @@ import torch.nn as nn
 import torch
 from transformers import BertTokenizer
 
-from util import (
-    get_args, get_pytorch_device, get_model, load_model,
-    save_model)
+from util import get_args, get_pytorch_device
+from k_shot_testing import k_shot_testing
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import PrototypeLearner
@@ -57,8 +56,14 @@ def train(tasks, model, args, device):
     model.train()
     model.to(device)
 
+    # setup test model, task and episodes for evaluation
+    test_model = type(model)(args)
+    test_task = SentimentAnalysis()
+    episodes = torch.load(args.episodes)
+
     iterations = 0
     iterations, running_loss = 0, 0.0
+    best_test_mean = -1
     for i in range(args.num_iterations):
 
         # Iterate over the data
@@ -115,6 +120,23 @@ def train(tasks, model, args, device):
                 (i + 1) / train_iter_len * 100,
                 iter_loss, acc))
             running_loss = 0.0
+
+        # evaluate in k shot fashion
+        if iterations % args.eval_every == 0:
+            test_model.load_state_dict(model.state_dict())
+            test_mean, _ = k_shot_testing(test_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
+            if test_mean > best_test_mean:
+                best_test_mean = test_mean
+                snapshot_prefix = os.path.join(args.save_path, 'best_test')
+                snapshot_path = (
+                        snapshot_prefix +
+                        '_loss_{:.5f}_iter_{}_model.pt'
+                ).format(best_test_mean, iterations)
+                model.save_model(snapshot_path)
+                # Keep only the best snapshot
+                for f in glob.glob(snapshot_prefix + '*'):
+                    if f != snapshot_path:
+                        os.remove(f)
 
         # saving redundant parameters
         # Save model checkpoints.

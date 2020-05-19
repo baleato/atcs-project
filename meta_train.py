@@ -11,6 +11,7 @@ from util import get_args_meta, get_pytorch_device, load_model
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import ProtoMAMLLearner
+from k_shot_testing import k_shot_testing
 from itertools import chain
 
 from datetime import datetime
@@ -76,8 +77,13 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     model.train()
 
+    # setup test task and episodes for evaluation
+    test_task = SentimentAnalysis()
+    episodes = torch.load(args.episodes)
+
     average_query_loss = 0
     best_query_loss = 1e+9
+    best_test_mean = -1
     # outer loop (meta-iterations)
     for i in range(meta_iters):
         grads = []
@@ -202,6 +208,24 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
                         os.remove(f)
+
+        # evaluate in k shot fashion
+        if iterations % args.eval_every == 0:
+            task_model.load_state_dict(model.state_dict())
+            test_mean, _ = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
+            if test_mean > best_test_mean:
+                best_test_mean = test_mean
+                snapshot_prefix = os.path.join(args.save_path, 'best_test')
+                snapshot_path = (
+                        snapshot_prefix +
+                        '_loss_{:.5f}_iter_{}_model.pt'
+                ).format(best_test_mean, iterations)
+                model.save_model(snapshot_path)
+                # Keep only the best snapshot
+                for f in glob.glob(snapshot_prefix + '*'):
+                    if f != snapshot_path:
+                        os.remove(f)
+
 
         # saving redundant parameters
         # Save model checkpoints.

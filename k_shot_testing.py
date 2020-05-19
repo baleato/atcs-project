@@ -25,10 +25,10 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
     cross_entropy = nn.CrossEntropyLoss()
 
     model.to(device)
-    model.eval()
 
     episode_accs = []
     for episode in episodes:
+        model.train()
         # setup output layer for ProtoMAML and MTL
         if isinstance(model, ProtoMAMLLearner):
             proto_embeddings = model.proto_net(episode[0].to(device), attention_mask=episode[2].to(device))
@@ -64,6 +64,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
 
         # evaluate accuracy on whole test set
         with torch.no_grad():
+            model.eval()
             accuracies = []
             batches_tested = 0
             for batch in test_iter:
