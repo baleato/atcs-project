@@ -110,7 +110,6 @@ if __name__ == '__main__':
     print("Loading model from snapshot")
     if args.model == 'MTL':
         model = MultiTaskLearner(args)
-        model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
     elif args.model == 'ProtoNet':
         model = PrototypeLearner(args)
     elif args.model == 'ProtoMAML':
@@ -119,6 +118,8 @@ if __name__ == '__main__':
         model = None
         RuntimeError('Unknown model type!')
     model.load_model(args.model_path, device)
+    if isinstance(model, MultiTaskLearner):
+        model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
     model.eval()
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
