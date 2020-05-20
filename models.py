@@ -9,7 +9,11 @@ from copy import deepcopy
 import logging
 
 class Encoder(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, last_linear_layer=False):
+        """
+        Composed by the BERT base-uncased model to which we attach a set of
+        fully-connected layers.
+        """
         super(Encoder, self).__init__()
         # BERT
         self.unfreeze_num = config.unfreeze_num
@@ -25,9 +29,11 @@ class Encoder(nn.Module):
         layers = []
         for h, h_next in zip(hidden_dims, hidden_dims[1:]):
             layers.append(nn.Linear(h, h_next))
-            if config.mlp_dropout > 0:
-                layers.append(nn.Dropout(p=config.mlp_dropout))
+            layers.append(nn.Dropout(p=config.mlp_dropout))
             layers.append(parse_nonlinearity(config.mlp_activation))
+        if last_linear_layer:
+            layers = layers[:-2]
+
         self.mlp = nn.Sequential(*layers)
 
     def forward(self, inputs, attention_mask=None):
@@ -102,9 +108,9 @@ class SLClassifier(nn.Module):
 
 
 class PrototypeLearner(nn.Module):
-    def __init__(self, config, input_dim=768, nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config):
         super(PrototypeLearner, self).__init__()
-        self.encoder = Encoder(config)
+        self.encoder = Encoder(config, last_linear_layer=True)
 
     def forward(self, inputs, attention_mask=None):
         encoded = self.encoder(inputs, attention_mask=attention_mask)
@@ -143,9 +149,9 @@ class PrototypeLearner(nn.Module):
 
 
 class ProtoMAMLLearner(nn.Module):
-    def __init__(self, config, input_dim=768, nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config):
         super(ProtoMAMLLearner, self).__init__()
-        self.proto_net = PrototypeLearner(config, input_dim, nonlinearity, dropout)
+        self.proto_net = PrototypeLearner(config)
         self.output_layer = nn.Linear(config.mlp_dims[-1], 2)
 
     def calculate_output_params(self, prototypes):
