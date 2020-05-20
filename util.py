@@ -149,19 +149,6 @@ def make_dataloader(dataset_id, input_ids, labels, attention_masks, batch_size=1
                             )
     return dataloader
 
-def split_episode(batch, ratio=.5):
-    batch_size = batch[0].size()[0]
-    support_size = round(batch_size*ratio)
-
-    support_idx_pos = np.random.choice(np.arange(0, batch_size, 2), int(np.ceil(support_size/2)), replace=False)
-    support_idx_neg = np.random.choice(np.arange(1, batch_size, 2), int(np.floor(support_size/2)), replace=False)
-    support_idx = np.sort(np.hstack((support_idx_pos, support_idx_neg)))
-    query_idx = np.setdiff1d(np.arange(batch_size), support_idx)
-
-    support_set = (batch[0][support_idx], batch[1][support_idx], batch[2][support_idx])
-    query_set = (batch[0][query_idx], batch[1][query_idx], batch[2][query_idx])
-    return support_set, query_set
-
 
 def get_model():
     """
