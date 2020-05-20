@@ -118,7 +118,7 @@ if __name__ == '__main__':
     else:
         model = None
         RuntimeError('Unknown model type!')
-    #model.load_model(args.model_path, device)
+    model.load_model(args.model_path, device)
     model.eval()
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
