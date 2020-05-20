@@ -215,8 +215,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         if iterations % args.eval_every == 0:
             task_model.load_state_dict(model.state_dict())
             test_mean, test_std = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
-            writer.add_scalar('TestTask/Acc', test_mean)
-            writer.add_scalar('TestTask/STD', test_std)
+            writer.add_scalar('TestTask/Acc', test_mean, iterations)
+            writer.add_scalar('TestTask/STD', test_std, iterations)
             print(test_template.format(test_mean, test_std), flush=True)
             if test_mean > best_test_mean:
                 best_test_mean = test_mean

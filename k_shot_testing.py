@@ -10,7 +10,7 @@ import torch.optim as optim
 import torch.nn as nn
 
 
-def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=5e-5, zero_init=False):
+def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=1e-3, zero_init=False):
     # get iterator over test task
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     test_iter = test_task.get_iter('test', tokenizer, shuffle=False)
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     else:
         model = None
         RuntimeError('Unknown model type!')
-    #model.load_model(args.model_path, device)
+    model.load_model(args.model_path, device)
     model.eval()
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
