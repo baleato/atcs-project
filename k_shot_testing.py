@@ -23,20 +23,19 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
         num_test_batches = test_size
 
     # Define optimizers and loss function
-    if isinstance(model, ProtoMAMLLearner):
-        optimizer_bert = optim.SGD(model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
-    else:
-        optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=args.bert_lr)
     if isinstance(model, MultiTaskLearner):
         task_module_name = 'task_{}'.format(test_task.get_name())
         out_MTL_layer = model._modules[task_module_name]
         optimizer = optim.SGD(params=chain(model.encoder.mlp.parameters(),
                                            out_MTL_layer.parameters()), lr=lr)
+        optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=args.bert_lr)
     elif isinstance(model, ProtoMAMLLearner):
-        optimizer = optim.SGD(params=chain(model.encoder.mlp.parameters(),
+        optimizer = optim.SGD(params=chain(model.proto_net.encoder.mlp.parameters(),
                                            model.output_layer.parameters()), lr=lr)
+        optimizer_bert = optim.SGD(model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
     else:
         optimizer = optim.SGD(params=model.encoder.mlp.parameters(), lr=lr)
+        optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=args.bert_lr)
 
     cross_entropy = nn.CrossEntropyLoss()
 
