@@ -1,6 +1,7 @@
 import os
 from itertools import chain
 
+
 from transformers import BertTokenizer, AdamW
 
 from util import get_test_args, get_pytorch_device, load_model
@@ -33,6 +34,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
                                            model.output_layer.parameters()), lr=lr)
     else:
         optimizer = optim.SGD(params=model.encoder.mlp.parameters(), lr=lr)
+
     cross_entropy = nn.CrossEntropyLoss()
 
     model.to(device)
@@ -53,6 +55,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
         # fine-tune model with some updates on the provided episode
         for update in range(num_updates):
             optimizer_bert.zero_grad()
+
             optimizer.zero_grad()
 
             # get predictions depending on model type
@@ -72,6 +75,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
             loss.backward()
             optimizer.step()
             optimizer_bert.step()
+
 
         # evaluate accuracy on whole test set
         with torch.no_grad():
