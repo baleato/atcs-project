@@ -158,14 +158,14 @@ class SemEval18Task(Task):
     Multi-labeled tweet data classified in 11 emotions: anger, anticipation,
     disgust, fear, joy, love, optimism, pessimism, sadness, surprise and trust.
     """
-    def __init__(self, fn_tokenizer=bert_tokenizer):
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
         self.emotions = [
             'anger', 'anticipation', 'disgust', 'fear', 'joy',
             'love', 'optimism', 'pessimism', 'sadness', 'surprise', 'trust'
         ]
         self.fn_tokenizer = fn_tokenizer
         self.num_classes = len(self.emotions)
-        self.classifier = SLClassifier(target_dim=self.num_classes)
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32, supp_query_split=False):
@@ -214,12 +214,12 @@ class SemEval18SingleEmotionTask(SemEval18Task):
     EMOTIONS = ['anger', 'anticipation', 'disgust', 'fear', 'joy', 'love',
                 'optimism', 'pessimism', 'sadness', 'surprise', 'trust']
 
-    def __init__(self, emotion, fn_tokenizer=bert_tokenizer):
+    def __init__(self, emotion, fn_tokenizer=bert_tokenizer, cls_dim=768):
         assert emotion in self.EMOTIONS
         self.emotion = emotion
         self.emotions = [self.emotion]
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = SLClassifier(target_dim=2)
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
 
@@ -241,10 +241,10 @@ class SemEval18SingleEmotionTask(SemEval18Task):
 
 class OffensevalTask(Task):
     NAME = 'Offenseval'
-    def __init__(self, fn_tokenizer=bert_tokenizer):
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
 
         self.fn_tokenizer = fn_tokenizer
-        self.classifier = SLClassifier(target_dim=2)
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
 
@@ -288,12 +288,11 @@ class OffensevalTask(Task):
 class SarcasmDetection(Task):
     NAME = 'SarcasmDetection'
 
-    def __init__(self, fn_tokenizer=bert_tokenizer):
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
         self.num_classes = 2
-        self.classifier = SLClassifier(target_dim=self.num_classes)
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
-
 
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
@@ -337,9 +336,9 @@ class SarcasmDetection(Task):
 class SentimentAnalysis(Task):
     NAME = 'SentimentAnalysis'
 
-    def __init__(self, fn_tokenizer=bert_tokenizer):
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
         self.num_classes = 2
-        self.classifier = MLPClassifier(target_dim=self.num_classes)
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
 
@@ -352,7 +351,7 @@ class SentimentAnalysis(Task):
             Iterable for the specified split
         """
         # current iter will have only two classes; we could extend it to have more
-        df = pd.read_csv('data/tweets_output.txt',header=None, sep='\t', names=['ID1', 'ID2', 'label','sentence'])
+        df = pd.read_csv('data/sem_eval_2015/tweets_output.txt',header=None, sep='\t', names=['ID1', 'ID2', 'label','sentence'])
         df = df[df.label != 'neutral']
         df = df[df.label != 'objective']
         df = df[df.label != 'objective-OR-neutral']

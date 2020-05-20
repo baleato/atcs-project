@@ -127,10 +127,10 @@ class PrototypeLearner(nn.Module):
 
     def compute_distance(self, samples, centroids):
         # compute distances
-        distances = torch.ones(samples.shape[0], 2)
-        for i in range(distances.shape[1]):
-            distances[:, i] = torch.norm(samples - centroids[i], dim=1)
-        return distances
+        distances = []
+        for i in range(centroids.shape[0]):
+            distances.append(torch.norm(samples - centroids[i], dim=1))
+        return torch.stack(distances, dim=1)
 
     def save_model(self, snapshot_path):
         state_dicts = self.encoder.get_trainable_params()
