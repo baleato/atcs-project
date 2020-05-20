@@ -80,7 +80,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     model.train()
 
     # setup test task and episodes for evaluation
-    test_task = SentimentAnalysis()
+    test_task = SentimentAnalysis(cls_dim=args.mlp_dims[-1])
     episodes = torch.load(args.episodes)
 
     average_query_loss = 0
@@ -269,9 +269,9 @@ if __name__ == '__main__':
     print("Tasks")
     tasks = []
     for emotion in SemEval18SingleEmotionTask.EMOTIONS:
-        tasks.append(SemEval18SingleEmotionTask(emotion))
-    tasks.append(SarcasmDetection())
-    tasks.append(OffensevalTask())
+        tasks.append(SemEval18SingleEmotionTask(emotion, cls_dim=args.mlp_dims[-1]))
+    tasks.append(SarcasmDetection(cls_dim=args.mlp_dims[-1]))
+    tasks.append(OffensevalTask(cls_dim=args.mlp_dims[-1]))
 
     meta_train(tasks, model, args, device, meta_iters=args.num_iterations,
                num_updates=args.inner_updates, meta_batch_size=args.meta_batch_size)

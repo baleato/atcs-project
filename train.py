@@ -58,7 +58,7 @@ def train(tasks, model, args, device):
     model.train()
 
     # setup test model, task and episodes for evaluation
-    test_task = SentimentAnalysis()
+    test_task = SentimentAnalysis(cls_dim=args.mlp_dims[-1])
     test_model = type(model)(args)
     test_model.add_task_classifier(test_task.get_name(), test_task.get_classifier().to(device))
     output_layer_name = 'task_{}'.format(test_task.get_name())
@@ -211,9 +211,9 @@ if __name__ == '__main__':
         print("Tasks")
         tasks = []
         for emotion in SemEval18SingleEmotionTask.EMOTIONS:
-            tasks.append(SemEval18SingleEmotionTask(emotion))
-        tasks.append(SarcasmDetection())
-        tasks.append(OffensevalTask())
+            tasks.append(SemEval18SingleEmotionTask(emotion, cls_dim=args.mlp_dims[-1]))
+        tasks.append(SarcasmDetection(cls_dim=args.mlp_dims[-1]))
+        tasks.append(OffensevalTask(cls_dim=args.mlp_dims[-1]))
         for task in tasks:
             model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
         model.load_model(args.resume_snapshot, device)
