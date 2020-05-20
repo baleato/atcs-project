@@ -102,7 +102,7 @@ if __name__ == '__main__':
     os.makedirs(args.save_path, exist_ok=True)
 
     if args.task == 'SentimentAnalysis':
-        task = SentimentAnalysis()
+        task = SentimentAnalysis(cls_dim=args.mlp_dims[-1])
     else:
         task = None
         RuntimeError('Unknown evaluation task!')
