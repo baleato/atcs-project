@@ -162,6 +162,7 @@ if __name__ == '__main__':
     for key, value in vars(args).items():
         print(key + ' : ' + str(value))
     device = get_pytorch_device(args)
+    print(device)
 
     if args.resume_snapshot:
         print("Loading models from snapshot")
@@ -182,5 +183,6 @@ if __name__ == '__main__':
         tasks.append(OffensevalTask())
 
         model = PrototypeLearner(args)
+    model.to(device)
     results = train(tasks, model, args, device)
 

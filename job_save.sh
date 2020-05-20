@@ -30,4 +30,4 @@ srun python train.py --save_path ~/results/
 
 cp ~/results/snap* ${LISA_HOME}
 cp ~/results/best* ${LISA_HOME}
-cp ~/results/runs/* ${LISA_HOME}
+cp -r ~/results/runs/* ${LISA_HOME}
