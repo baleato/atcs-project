@@ -26,8 +26,4 @@ cd ${WORKING_DIR}/atcs-project
 
 pip install --user -r requirements.txt
 
-srun python train_prototype.py --save_path ~/results/
-
-cp ~/results/snap* ${LISA_HOME}
-cp ~/results/best* ${LISA_HOME}
-cp ~/results/runs/* ${LISA_HOME}
+srun python test_cuda.py
