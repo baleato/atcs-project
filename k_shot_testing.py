@@ -12,7 +12,7 @@ import torch.optim as optim
 import torch.nn as nn
 
 
-def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=1e-3, zero_init=False):
+def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=1e-3, bert_lr=5e-5, zero_init=False):
     # get iterator over test task
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     test_iter = test_task.get_iter('test', tokenizer, shuffle=False)
@@ -23,17 +23,19 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
         num_test_batches = test_size
 
     # Define optimizers and loss function
-    optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=args.bert_lr)
     if isinstance(model, MultiTaskLearner):
         task_module_name = 'task_{}'.format(test_task.get_name())
         out_MTL_layer = model._modules[task_module_name]
         optimizer = optim.SGD(params=chain(model.encoder.mlp.parameters(),
                                            out_MTL_layer.parameters()), lr=lr)
+        optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=bert_lr)
     elif isinstance(model, ProtoMAMLLearner):
-        optimizer = optim.SGD(params=chain(model.encoder.mlp.parameters(),
+        optimizer = optim.SGD(params=chain(model.proto_net.encoder.mlp.parameters(),
                                            model.output_layer.parameters()), lr=lr)
+        optimizer_bert = optim.SGD(model.proto_net.encoder.bert.parameters(), lr=bert_lr)
     else:
         optimizer = optim.SGD(params=model.encoder.mlp.parameters(), lr=lr)
+        optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=bert_lr)
 
     cross_entropy = nn.CrossEntropyLoss()
 
@@ -145,5 +147,5 @@ if __name__ == '__main__':
         random_id = int(np.random.randint(0, 10000, 1))
         torch.save(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
 
-    mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches, lr=args.lr)
+    mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches, lr=args.lr, bert_lr=args.bert_lr)
     print("Mean accuracy: {}, standard deviation: {}".format(mean, stddev))
