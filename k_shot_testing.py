@@ -22,7 +22,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
         num_test_batches = test_size
 
     # Define optimizers and loss function
-    optimizer_bert = optim.SGD(model.encoder.bert.trainable_parameters(), lr=args.bert_lr)
+    optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=args.bert_lr)
     if isinstance(model, MultiTaskLearner):
         task_module_name = 'task_{}'.format(test_task.get_name())
         out_MTL_layer = model._modules[task_module_name]
