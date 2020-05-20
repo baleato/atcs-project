@@ -31,8 +31,7 @@ def train(tasks, model, args, device):
              'Loss   Dev/Loss     Accuracy      Dev/Acc'
     log_template = '{:>10} {:>25} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}% ' + \
                    '{:10.6f}              {:10.6f}'
-    dev_log_template = '{:>10} {:>25} {:7.0f} {:10.0f} {:5.0f}/{:<5.0f} {:5.0f}%' + \
-        '            {:10.6f}              {:12.6f}'
+    test_template = 'Test mean: {}, Test std: {}'
 
     print(header)
     start = time.time()
@@ -124,13 +123,16 @@ def train(tasks, model, args, device):
         # evaluate in k shot fashion
         if iterations % args.eval_every == 0:
             test_model.load_state_dict(model.state_dict())
-            test_mean, _ = k_shot_testing(test_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
+            test_mean, test_std = k_shot_testing(test_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
+            writer.add_scalar('TestTask/Acc', test_mean)
+            writer.add_scalar('TestTask/STD', test_std)
+            print(test_template.format(test_mean, test_std), flush=True)
             if test_mean > best_test_mean:
                 best_test_mean = test_mean
                 snapshot_prefix = os.path.join(args.save_path, 'best_test')
                 snapshot_path = (
                         snapshot_prefix +
-                        '_loss_{:.5f}_iter_{}_model.pt'
+                        '_acc_{:.5f}_iter_{}_model.pt'
                 ).format(best_test_mean, iterations)
                 model.save_model(snapshot_path)
                 # Keep only the best snapshot

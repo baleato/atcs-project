@@ -55,6 +55,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
     header = '      Time      Task      Iteration      Loss      Accuracy'
     log_template = '{:>10} {:>25} {:10.0f} {:10.6f} {:10.6f}'
+    test_template = 'Test mean: {}, Test std: {}'
 
     print(header)
     start = time.time()
@@ -177,7 +178,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
         iterations += 1
         if iterations % args.log_every == 0:
-            average_query_loss /= args.log_every
+            average_query_loss /= (args.log_every*meta_batch_size)
             iter_loss = sum(task_losses_outer.values()) / len(task_losses_outer.values())
             iter_acc = sum(task_accuracies_outer.values()) / len(task_accuracies_outer.values())
             writer.add_scalar('Meta_Average/Loss/outer'.format(sampler.get_name()), iter_loss, iterations)
@@ -199,7 +200,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             if average_query_loss < best_query_loss:
                 best_query_loss = average_query_loss
                 average_query_loss = 0
-                snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
+                snapshot_prefix = os.path.join(args.save_path, 'best_query')
                 snapshot_path = (
                         snapshot_prefix +
                         '_loss_{:.5f}_iter_{}_model.pt'
@@ -213,13 +214,16 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         # evaluate in k shot fashion
         if iterations % args.eval_every == 0:
             task_model.load_state_dict(model.state_dict())
-            test_mean, _ = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
+            test_mean, test_std = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
+            writer.add_scalar('TestTask/Acc', test_mean)
+            writer.add_scalar('TestTask/STD', test_std)
+            print(test_template.format(test_mean, test_std), flush=True)
             if test_mean > best_test_mean:
                 best_test_mean = test_mean
                 snapshot_prefix = os.path.join(args.save_path, 'best_test')
                 snapshot_path = (
                         snapshot_prefix +
-                        '_loss_{:.5f}_iter_{}_model.pt'
+                        '_acc_{:.5f}_iter_{}_model.pt'
                 ).format(best_test_mean, iterations)
                 model.save_model(snapshot_path)
                 # Keep only the best snapshot
