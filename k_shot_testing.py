@@ -1,4 +1,6 @@
 import os
+from itertools import chain
+
 
 from transformers import BertTokenizer, AdamW
 
@@ -21,7 +23,18 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
         num_test_batches = test_size
 
     # Define optimizers and loss function
-    optimizer = optim.SGD(params=model.parameters(), lr=lr)
+    optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=args.bert_lr)
+    if isinstance(model, MultiTaskLearner):
+        task_module_name = 'task_{}'.format(test_task.get_name())
+        out_MTL_layer = model._modules[task_module_name]
+        optimizer = optim.SGD(params=chain(model.encoder.mlp.parameters(),
+                                           out_MTL_layer.parameters()), lr=lr)
+    elif isinstance(model, ProtoMAMLLearner):
+        optimizer = optim.SGD(params=chain(model.encoder.mlp.parameters(),
+                                           model.output_layer.parameters()), lr=lr)
+    else:
+        optimizer = optim.SGD(params=model.encoder.mlp.parameters(), lr=lr)
+
     cross_entropy = nn.CrossEntropyLoss()
 
     model.to(device)
@@ -36,13 +49,13 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
             W, b = model.calculate_output_params(prototypes.detach())
             model.initialize_classifier(W, b)
         elif zero_init and isinstance(model, MultiTaskLearner):
-            task_module_name = 'task_{}'.format(test_task.get_name())
-            out_MTL_layer = model._modules[task_module_name]
             out_MTL_layer.weight.data = torch.zeros_like(out_MTL_layer.weight.data)
             out_MTL_layer.bias.data = torch.zeros_like(out_MTL_layer.bias.data)
 
         # fine-tune model with some updates on the provided episode
         for update in range(num_updates):
+            optimizer_bert.zero_grad()
+
             optimizer.zero_grad()
 
             # get predictions depending on model type
@@ -61,6 +74,8 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
 
             loss.backward()
             optimizer.step()
+            optimizer_bert.step()
+
 
         # evaluate accuracy on whole test set
         with torch.no_grad():
