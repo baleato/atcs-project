@@ -11,6 +11,7 @@ from util import get_args_meta, get_pytorch_device, load_model
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import ProtoMAMLLearner
+from k_shot_testing import k_shot_testing
 from itertools import chain
 
 from datetime import datetime
@@ -54,6 +55,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
     header = '      Time      Task      Iteration      Loss      Accuracy'
     log_template = '{:>10} {:>25} {:10.0f} {:10.6f} {:10.6f}'
+    test_template = 'Test mean: {}, Test std: {}'
 
     print(header)
     start = time.time()
@@ -68,16 +70,22 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     print('done.')
 
+    # setup task sampler and task model
     sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio, supp_query_split=True)
-    task_model = type(model)(args, hidden_dims=[500])
+    task_model = type(model)(args)
 
     iterations = 0
     # Iterate over the data
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     model.train()
 
+    # setup test task and episodes for evaluation
+    test_task = SentimentAnalysis(cls_dim=args.mlp_dims[-1])
+    episodes = torch.load(args.episodes)
+
     average_query_loss = 0
     best_query_loss = 1e+9
+    best_test_mean = -1
     # outer loop (meta-iterations)
     for i in range(meta_iters):
         grads = []
@@ -93,8 +101,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             task_model.train()
 
             # new optimizer for every new task model
-            task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.parameters(), lr=args.lr)
-            task_optimizer = optim.SGD(params=chain(task_model.proto_net.classifier_layer.parameters(),
+            task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
+            task_optimizer = optim.SGD(params=chain(task_model.proto_net.encoder.mlp.parameters(),
                                                     task_model.output_layer.parameters()),
                                        lr=args.inner_lr)
 
@@ -170,7 +178,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
         iterations += 1
         if iterations % args.log_every == 0:
-            average_query_loss /= args.log_every
+            average_query_loss /= (args.log_every*meta_batch_size)
             iter_loss = sum(task_losses_outer.values()) / len(task_losses_outer.values())
             iter_acc = sum(task_accuracies_outer.values()) / len(task_accuracies_outer.values())
             writer.add_scalar('Meta_Average/Loss/outer'.format(sampler.get_name()), iter_loss, iterations)
@@ -192,16 +200,37 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             if average_query_loss < best_query_loss:
                 best_query_loss = average_query_loss
                 average_query_loss = 0
-                snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
+                snapshot_prefix = os.path.join(args.save_path, 'best_query')
                 snapshot_path = (
                         snapshot_prefix +
                         '_loss_{:.5f}_iter_{}_model.pt'
                 ).format(best_query_loss, iterations)
-                model.save_model(args.unfreeze_num, snapshot_path)
+                model.save_model(snapshot_path)
                 # Keep only the best snapshot
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
                         os.remove(f)
+
+        # evaluate in k shot fashion
+        if iterations % args.eval_every == 0:
+            task_model.load_state_dict(model.state_dict())
+            test_mean, test_std = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
+            writer.add_scalar('TestTask/Acc', test_mean, iterations)
+            writer.add_scalar('TestTask/STD', test_std, iterations)
+            print(test_template.format(test_mean, test_std), flush=True)
+            if test_mean > best_test_mean:
+                best_test_mean = test_mean
+                snapshot_prefix = os.path.join(args.save_path, 'best_test')
+                snapshot_path = (
+                        snapshot_prefix +
+                        '_acc_{:.5f}_iter_{}_model.pt'
+                ).format(best_test_mean, iterations)
+                model.save_model(snapshot_path)
+                # Keep only the best snapshot
+                for f in glob.glob(snapshot_prefix + '*'):
+                    if f != snapshot_path:
+                        os.remove(f)
+
 
         # saving redundant parameters
         # Save model checkpoints.
@@ -213,7 +242,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                     '_iter_{}_loss_{}_model.pt'
             ).format(iterations, iter_loss)
             logging.debug('Saving model...')
-            model.save_model(args.unfreeze_num, snapshot_path)
+            model.save_model(snapshot_path)
             # Keep only the last snapshot
             for f in glob.glob(snapshot_prefix + '*'):
                 if f != snapshot_path:
@@ -231,18 +260,18 @@ if __name__ == '__main__':
     if args.resume_snapshot:
         print("Loading models from snapshot")
         # TODO find way to pass right number of hidden layers when loading from snapshot
-        model = ProtoMAMLLearner(args, hidden_dims=[500])
+        model = ProtoMAMLLearner(args)
         model = load_model(args.resume_snapshot, model, args.unfreeze_num, device)
     else:
-        model = ProtoMAMLLearner(args, hidden_dims=[500])
+        model = ProtoMAMLLearner(args)
 
     model.to(device)
     print("Tasks")
     tasks = []
     for emotion in SemEval18SingleEmotionTask.EMOTIONS:
-        tasks.append(SemEval18SingleEmotionTask(emotion))
-    tasks.append(SarcasmDetection())
-    tasks.append(OffensevalTask())
+        tasks.append(SemEval18SingleEmotionTask(emotion, cls_dim=args.mlp_dims[-1]))
+    tasks.append(SarcasmDetection(cls_dim=args.mlp_dims[-1]))
+    tasks.append(OffensevalTask(cls_dim=args.mlp_dims[-1]))
 
     meta_train(tasks, model, args, device, meta_iters=args.num_iterations,
                num_updates=args.inner_updates, meta_batch_size=args.meta_batch_size)

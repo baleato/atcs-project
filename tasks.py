@@ -376,6 +376,7 @@ class SentimentAnalysis(Task):
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
 
+
 class IronySubtaskA(Task):
     NAME = 'IronySubtaskA'
 

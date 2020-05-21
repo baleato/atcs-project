@@ -8,114 +8,113 @@ from copy import deepcopy
 
 import logging
 
-class MetaLearner(nn.Module):
-    def __init__(self, config):
-        super(MetaLearner, self).__init__()
-        self.encoder = BertModel.from_pretrained("bert-base-uncased")
-        self.encoder.requires_grad_(False)
-        for block in self.encoder.encoder.layer[-(config.unfreeze_num):]:
+class Encoder(nn.Module):
+    def __init__(self, config, last_linear_layer=False):
+        """
+        Composed by the BERT base-uncased model to which we attach a set of
+        fully-connected layers.
+        """
+        super(Encoder, self).__init__()
+        # BERT
+        self.unfreeze_num = config.unfreeze_num
+        self.bert = BertModel.from_pretrained("bert-base-uncased")
+        self.bert.requires_grad_(False)
+        for block in self.bert.encoder.layer[-(config.unfreeze_num):]:
             for params in block.parameters():
                 params.requires_grad = True
+
+        # MLP; layers: linear + dropout (optional) + activation
+        bert_cls_token_dims = 768
+        hidden_dims = [bert_cls_token_dims] + config.mlp_dims
+        layers = []
+        for h, h_next in zip(hidden_dims, hidden_dims[1:]):
+            layers.append(nn.Linear(h, h_next))
+            layers.append(nn.Dropout(p=config.mlp_dropout))
+            layers.append(parse_nonlinearity(config.mlp_activation))
+        if last_linear_layer:
+            layers = layers[:-2]
+
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, inputs, attention_mask=None):
+        encoded = self.bert(inputs, attention_mask=attention_mask)[0]
+        cls_token_enc = encoded[:, 0, :]
+        out = self.mlp(cls_token_enc)
+        return out
+
+    def get_trainable_params(self):
+        # Copy instance of model to avoid mutation while training
+        bert_model_copy = deepcopy(self.bert)
+
+        # Delete frozen layers from model_copy instance, save state_dicts
+        state_dicts = {'unfreeze_num': self.unfreeze_num}
+        for i in range(1, self.unfreeze_num+1):
+            state_dicts['bert_l_-{}'.format(i)] = bert_model_copy.encoder.layer[-i].state_dict()
+        state_dicts['mlp'] = self.mlp.state_dict()
+        return state_dicts
+
+    def load_trainable_params(self, state_dicts):
+        unfreeze_num = state_dicts['unfreeze_num']
+        # Overwrite last n BERT blocks, overwrite MLP params
+        for i in range(1, unfreeze_num + 1):
+            self.bert.encoder.layer[-i].load_state_dict(state_dicts['bert_l_-{}'.format(i)])
+        self.mlp.load_state_dict(state_dicts['mlp'])
+
+
+class MultiTaskLearner(nn.Module):
+    def __init__(self, config):
+        super(MultiTaskLearner, self).__init__()
+        self.encoder = Encoder(config)
 
     def forward(self, inputs, task_name=None, attention_mask=None):
         task_module_name = 'task_{}'.format(task_name)
         assert task_module_name in self._modules
 
-        encoded = self.encoder(inputs, attention_mask=attention_mask)[0]
-        cls_token_enc = encoded[:, 0, :]
+        encoded = self.encoder(inputs, attention_mask=attention_mask)
         classifier = self._modules[task_module_name]
-        return classifier(cls_token_enc)
+        return classifier(encoded)
 
     def add_task_classifier(self, task_name, classifier):
         assert issubclass(type(classifier), nn.Module)
         self.add_module('task_{}'.format(task_name), classifier)
 
-    def save_model(self, unfreeze_num, snapshot_path):
-        # FIXME #2: also save optimizer state_dict, epochs, loss, etc
-        # Copy instance of model to avoid mutation while training
-        bert_model_copy = deepcopy(self.encoder)
-
-        # Delete frozen layers from model_copy instance, save state_dicts
-        state_dicts = {'unfreeze_num': unfreeze_num}
+    def save_model(self, snapshot_path):
+        state_dicts = self.encoder.get_trainable_params()
         for module in self._modules:
-            if module == 'encoder':
-                for i in range(1, unfreeze_num+1):
-                    state_dicts['bert_l_-{}'.format(i)] = bert_model_copy.encoder.layer[-i].state_dict()
             if 'task' in module:
                 state_dicts[module+'_state_dict'] = self._modules[module].state_dict()
         torch.save(state_dicts, snapshot_path)
 
-
     def load_model(self, path, device):
-        # Load dictionary with BERT and MLP state_dicts
         checkpoint = torch.load(path, map_location=device)
-        unfreeze_num = checkpoint['unfreeze_num']
-        # Overwrite last n BERT blocks, overwrite MLP params
-        for i in range(1, unfreeze_num + 1):
-            self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])
+        self.encoder.load_trainable_params(checkpoint)
         for module in self._modules:
             if 'task' in module:
                 self._modules[module].load_state_dict(checkpoint[module+'_state_dict'])
 
 
-
-class MLPClassifier(nn.Module):
+class SLClassifier(nn.Module):
     """
-    Class for Multi-Layer Perceptron Classifier
+    Class for Single-Layer Classifier
     """
-
-    def __init__(self, input_dim=768, target_dim=2, hidden_dims=[], nonlinearity='ReLU', dropout=0.0):
-        super(MLPClassifier, self).__init__()
-
-        # append input and output dimension to layer list
-        if hidden_dims is None:
-            hidden_dims = []
-        hidden_dims.insert(0, input_dim)
-        hidden_dims.append(target_dim)
-
-        # stack layers with dropout and specified nonlinearity
-        layers = []
-        for h, h_next in zip(hidden_dims, hidden_dims[1:]):
-            layers.append(nn.Linear(h, h_next))
-            if dropout > 0:
-                layers.append(nn.Dropout(p=dropout))
-            if nonlinearity is not None:
-                layers.append(parse_nonlinearity(nonlinearity))
-
-        # remove nonlinearity and dropout for output layer
-        if nonlinearity is not None:
-            layers.pop()
-            if dropout > 0:
-                layers.pop()
-
-        self.network = nn.Sequential(*layers)
+    def __init__(self, input_dim=768, target_dim=2):
+        super(SLClassifier, self).__init__()
+        self.network = nn.Sequential(
+                nn.Linear(input_dim, target_dim)
+            )
 
     def forward(self, input):
-        output = self.network(input)
-        return output
+        return self.network(input)
 
 
 class PrototypeLearner(nn.Module):
-    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config):
         super(PrototypeLearner, self).__init__()
-        if hidden_dims is None:
-            hidden_dims = []
-        self.encoder = BertModel.from_pretrained("bert-base-uncased")
-        self.encoder.requires_grad_(False)
-        for block in self.encoder.encoder.layer[-(config.unfreeze_num):]:
-            for params in block.parameters():
-                params.requires_grad = True
-
-        self.classifier_layer = MLPClassifier(input_dim, target_dim, hidden_dims, nonlinearity, dropout)
-
-
+        self.encoder = Encoder(config, last_linear_layer=True)
 
     def forward(self, inputs, attention_mask=None):
-        encoded = self.encoder(inputs, attention_mask=attention_mask)[0]
-        cls_token_enc = encoded[:, 0, :]
-        out = self.classifier_layer(cls_token_enc)
-
-        return out
+        encoded = self.encoder(inputs, attention_mask=attention_mask)
+        return encoded
 
     def calculate_centroids(self, support, num_classes):
         support, support_labels = support
@@ -132,35 +131,28 @@ class PrototypeLearner(nn.Module):
                 centroids.append(torch.randn(support.size()[1]).to(support.device))
         return torch.stack(centroids)
 
-    def save_model(self, unfreeze_num, snapshot_path):
-        # FIXME #2: also save optimizer state_dict, epochs, loss, etc
-        # Copy instance of model to avoid mutation while training
-        bert_model_copy = deepcopy(self.encoder)
+    def compute_distance(self, samples, centroids):
+        # compute distances
+        distances = []
+        for i in range(centroids.shape[0]):
+            distances.append(torch.norm(samples - centroids[i], dim=1))
+        return torch.stack(distances, dim=1)
 
-        # Delete frozen layers from model_copy instance, save state_dicts
-        state_dicts = {'unfreeze_num': unfreeze_num}
-        for module in self._modules:
-            if module == 'encoder':
-                for i in range(1, unfreeze_num+1):
-                    state_dicts['bert_l_-{}'.format(i)] = bert_model_copy.encoder.layer[-i].state_dict()
-        state_dicts['outputlayer_state_dict'] = self.classifier_layer.state_dict()
+    def save_model(self, snapshot_path):
+        state_dicts = self.encoder.get_trainable_params()
         torch.save(state_dicts, snapshot_path)
 
     def load_model(self, path, device):
         # Load dictionary with BERT and MLP state_dicts
         checkpoint = torch.load(path, map_location=device)
-        unfreeze_num = checkpoint['unfreeze_num']
-        # Overwrite last n BERT blocks, overwrite MLP params
-        for i in range(1, unfreeze_num + 1):
-            self.encoder.encoder.layer[-i].load_state_dict(checkpoint['bert_l_-{}'.format(i)])
-        self.classifier_layer.load_state_dict(checkpoint['outputlayer_state_dict'])
+        self.encoder.load_trainable_params(checkpoint)
 
 
 class ProtoMAMLLearner(nn.Module):
-    def __init__(self, config, input_dim=768, target_dim=500, hidden_dims=None, nonlinearity='ReLU', dropout=0.0):
+    def __init__(self, config):
         super(ProtoMAMLLearner, self).__init__()
-        self.proto_net = PrototypeLearner(config, input_dim, target_dim, hidden_dims, nonlinearity, dropout)
-        self.output_layer = nn.Linear(target_dim, 2)
+        self.proto_net = PrototypeLearner(config)
+        self.output_layer = nn.Linear(config.mlp_dims[-1], 2)
 
     def calculate_output_params(self, prototypes):
         W = 2 * prototypes
@@ -185,32 +177,17 @@ class ProtoMAMLLearner(nn.Module):
         out = self.output_layer(proto_embedding)
         return out
 
-    def save_model(self, unfreeze_num, snapshot_path):
+    def save_model(self, snapshot_path):
         # Copy instance of model to avoid mutation while training
-        proto_net_encoder = deepcopy(self.proto_net.encoder)
-        proto_net_classifier = deepcopy(self.proto_net.classifier_layer)
         classifier = deepcopy(self.output_layer)
 
         # Delete frozen layers from model_copy instance, save state_dicts
-        state_dicts = {'unfreeze_num': unfreeze_num}
-        for module in self.proto_net._modules:
-            if module == 'encoder':
-                for i in range(1, unfreeze_num+1):
-                    state_dicts['proto_net_bert_l_-{}'.format(i)] = proto_net_encoder.encoder.layer[-i].state_dict()
-        state_dicts['proto_net_classifier_state_dict'] = proto_net_classifier.state_dict()
+        state_dicts = self.proto_net.encoder.get_trainable_params()
         state_dicts['output_layer_state_dict'] = classifier.state_dict()
-
 
         torch.save(state_dicts, snapshot_path)
 
     def load_model(self, path, device):
-        # Load dictionary with BERT and MLP state_dicts
         checkpoint = torch.load(path, map_location=device)
-        unfreeze_num = checkpoint['unfreeze_num']
-        # Overwrite last n BERT blocks, overwrite MLP params
-        for i in range(1, unfreeze_num + 1):
-
-            self.proto_net.encoder.encoder.layer[-i].load_state_dict(checkpoint['proto_net_bert_l_-{}'.format(i)])
-        self.proto_net.classifier_layer.load_state_dict(checkpoint['proto_net_classifier_state_dict'])
+        self.proto_net.encoder.load_trainable_params(checkpoint)
         self.output_layer.load_state_dict(checkpoint['output_layer_state_dict'])
-
