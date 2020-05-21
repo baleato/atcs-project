@@ -111,6 +111,7 @@ class PrototypeLearner(nn.Module):
     def __init__(self, config):
         super(PrototypeLearner, self).__init__()
         self.encoder = Encoder(config, last_linear_layer=True)
+        self.distance = config.distance
 
     def forward(self, inputs, attention_mask=None):
         encoded = self.encoder(inputs, attention_mask=attention_mask)
@@ -133,19 +134,40 @@ class PrototypeLearner(nn.Module):
 
     def compute_distance(self, samples, centroids):
         # compute distances
+        f_distance = self._euclidean_distance if self.distance == 'euclidean' else self._cosine_similarity
         distances = []
         for i in range(centroids.shape[0]):
-            distances.append(torch.norm(samples - centroids[i], dim=1))
+            distances.append(f_distance(samples, centroids[i]))
         return torch.stack(distances, dim=1)
 
     def save_model(self, snapshot_path):
         state_dicts = self.encoder.get_trainable_params()
+        state_dicts['distance'] = self.distance
         torch.save(state_dicts, snapshot_path)
 
     def load_model(self, path, device):
         # Load dictionary with BERT and MLP state_dicts
         checkpoint = torch.load(path, map_location=device)
         self.encoder.load_trainable_params(checkpoint)
+        self.distance = checkpoint['distance']
+
+    def _euclidean_distance(self, t1, t2):
+        return torch.norm(t1 - t2, dim=1)
+
+    def _cosine_similarity(self, t1, t2):
+        """
+        The cosine similarity ranges from -1 (contrary directions) to 1 (vectors
+        pointing in the same direction). We modify this scale to fit the spacial
+        distance reletionship that consumers of the PrototypeLearner expect.
+        Hence, we apply the following transformation to the cosine similarity
+        value (cs):
+            f = -(cs - 1)
+        This will return values in the range [0, 2] where lower values indicate
+        similar direction and higher values the contrarian.
+        """
+        cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+        return -(cos(t1, t2) -1)
+
 
 
 class ProtoMAMLLearner(nn.Module):
