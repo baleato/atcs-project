@@ -375,3 +375,125 @@ class SentimentAnalysis(Task):
         bin_labels = new_predictions == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
+
+
+class IronySubtaskA(Task):
+    NAME = 'IronySubtaskA'
+
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
+        self.num_classes = 2
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
+        self.criterion = CrossEntropyLoss()
+        self.fn_tokenizer = fn_tokenizer
+
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
+        """
+        Returns an iterable over the single
+        Args:
+            split: train/dev/test
+        Returns:
+            Iterable for the specified split
+        """
+        # current iter will have only two classes; we could extend it to have more
+        df = pd.read_csv('data/sem_eval_2018/SemEval2018-T3-train-taskA.txt', sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
+
+        sentences = df.Tweet_text.values
+        labels = np.where(df.Label.values == 1, 1, 0)
+
+        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
+        labels = torch.tensor(labels)#.unsqueeze(1)
+
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+
+    def get_classifier(self):
+        return self.classifier
+
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions, labels.long())
+
+    def calculate_accuracy(self, predictions, labels):
+        new_predictions = predictions.argmax(dim=1, keepdim=False)
+        bin_labels = new_predictions == labels
+        correct = bin_labels.sum().float().item()
+        return correct / len(labels)
+
+#TODO: right now this task has 4 categories; we could possibly remove one of four categories if the task is too difficult
+class IronySubtaskB(Task):
+    NAME = 'IronySubtaskB'
+
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
+        self.num_classes = 4
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
+        self.criterion = CrossEntropyLoss()
+        self.fn_tokenizer = fn_tokenizer
+
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
+        """
+        Returns an iterable over the single
+        Args:
+            split: train/dev/test
+        Returns:
+            Iterable for the specified split
+        """
+        # current iter will have only two classes; we could extend it to have more
+        df = pd.read_csv('data/sem_eval_2018/SemEval2018-T3-train-taskB.txt', sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
+
+        sentences = df.Tweet_text.values
+        labels = df.Label.values
+
+        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
+        labels = torch.tensor(labels)#.unsqueeze(1)
+
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+
+    def get_classifier(self):
+        return self.classifier
+
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions, labels.long())
+
+    def calculate_accuracy(self, predictions, labels):
+        new_predictions = predictions.argmax(dim=1, keepdim=False)
+        bin_labels = new_predictions == labels
+        correct = bin_labels.sum().float().item()
+        return correct / len(labels)
+
+class Abuse(Task):
+    NAME = 'Abuse'
+
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
+        self.num_classes = 3
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
+        self.criterion = CrossEntropyLoss()
+        self.fn_tokenizer = fn_tokenizer
+
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
+        """
+        Returns an iterable over the single
+        Args:
+            split: train/dev/test
+        Returns:
+            Iterable for the specified split
+        """
+        # current iter will have only two classes; we could extend it to have more
+        df = pd.read_csv('data/tweet_wassem/twitter_data_waseem_hovy.csv', sep=',', header=0, names=['Tweet_index', 'Tweet_text', 'Label'])
+
+        sentences = df.Tweet_text.values
+        labels = df.Label.values
+
+        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
+        labels = torch.tensor(labels)#.unsqueeze(1)
+
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+
+    def get_classifier(self):
+        return self.classifier
+
+    def get_loss(self, predictions, labels):
+        return self.criterion(predictions, labels.long())
+
+    def calculate_accuracy(self, predictions, labels):
+        new_predictions = predictions.argmax(dim=1, keepdim=False)
+        bin_labels = new_predictions == labels
+        correct = bin_labels.sum().float().item()
+        return correct / len(labels)
