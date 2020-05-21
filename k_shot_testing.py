@@ -120,6 +120,12 @@ if __name__ == '__main__':
 
     if args.task == 'SentimentAnalysis':
         task = SentimentAnalysis(cls_dim=args.mlp_dims[-1])
+    elif args.task == 'Irony_A':
+        task = IronySubtaskA(cls_dim=args.mlp_dims[-1])
+    elif args.task == 'Irony_B':
+        task = IronySubtaskB(cls_dim=args.mlp_dims[-1])
+    elif args.task == 'Abuse':
+        task = Abuse(cls_dim=args.mlp_dims[-1])
     else:
         task = None
         RuntimeError('Unknown evaluation task!')
