@@ -26,7 +26,21 @@ if [[ ! -f WaseemHovy.zip ]]; then
 fi
 
 # Sentiment Classification; data/sem_eval_2015
-if [[ ! -f sem_eval_2015/tweets_output.txt ]]; then
-  mkdir -p sem_eval_2015
-  curl -Lo sem_eval_2015/tweets_output.txt 'https://drive.google.com/uc?export=download&id=10G4Owb12txUo1HZqkwaxJ69-GHyWvPKN'
+if [[ ! -f tweets_output.zip ]]; then
+  curl -Lo tweets_output.zip 'https://drive.google.com/uc?export=download&id=10G4Owb12txUo1HZqkwaxJ69-GHyWvPKN'
+  unzip tweets_output.zip  -d sem_eval_2015
 fi
+
+# Irony subtask A; data/sem_eval_2018
+if [[ ! -f SemEval2018-T3-train-taskA.txt ]]; then
+  curl -Lo SemEval2018-T3-train-taskA.txt.zip 'https://drive.google.com/uc?export=download&id=1ihc9XKBvSIgoGpsp8hrkL-8hEUMi-Tuv'
+  unzip SemEval2018-T3-train-taskA.txt.zip -d sem_eval_2018
+fi
+
+# Irony subtask B; data/sem_eval_2018
+if [[ ! -f SemEval2018-T3-train-taskB.txt ]]; then
+  curl -Lo SemEval2018-T3-train-taskB.txt.zip 'https://drive.google.com/uc?export=download&id=1qFwQ6LPfLIYRe0C9z8rGYDHFBzKT2ivv'
+  unzip SemEval2018-T3-train-taskB.txt.zip -d sem_eval_2018
+fi
+
+
