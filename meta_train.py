@@ -62,10 +62,10 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
     # Define optimizers and loss function
     # TODO validate if BertAdam works better and then also use in MTL training
-    optimizer_BERT = AdamW(params=model.proto_net.encoder.bert.parameters(), lr=args.bert_lr, correct_bias=False)
-    optimizer = AdamW(params=chain(model.proto_net.encoder.mlp.parameters(),
+    optimizer_BERT = optim.Adam(params=model.proto_net.encoder.bert.parameters(), lr=args.bert_lr, correct_bias=False)
+    optimizer = optim.Adam(params=chain(model.proto_net.encoder.mlp.parameters(),
                                    model.output_layer.parameters()),
-                      lr=args.lr, correct_bias=False)
+                           lr=args.lr, correct_bias=False)
     # ProtoNets always have CrossEntropy loss due to softmax output
     cross_entropy = nn.CrossEntropyLoss()
 
