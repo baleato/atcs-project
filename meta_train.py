@@ -100,7 +100,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         # inner loop (sample different tasks)
         for task_sample in range(meta_batch_size):
             # clone original model
-            task_model.load_state_dict(model.state_dict())
+            task_model.proto_net.load_state_dict(model.proto_net.state_dict())
             task_model.to(device)
             task_model.train()
 
