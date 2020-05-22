@@ -137,7 +137,7 @@ class PrototypeLearner(nn.Module):
         f_distance = self._euclidean_distance if self.distance == 'euclidean' else self._cosine_similarity
         distances = []
         for i in range(centroids.shape[0]):
-            distances.append(f_distance(samples, centroids[i]))
+            distances.append(f_distance(samples, centroids[i].unsqueeze(0)))
         return torch.stack(distances, dim=1)
 
     def save_model(self, snapshot_path):
