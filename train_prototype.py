@@ -8,7 +8,7 @@ from itertools import chain
 from torch import load
 import torch.nn as nn
 import torch
-from transformers import BertTokenizer
+from transformers import BertTokenizer, AdamW, get_cosine_schedule_with_warmup
 
 from util import get_args, get_pytorch_device
 from k_shot_testing import k_shot_testing
@@ -37,9 +37,11 @@ def train(tasks, model, args, device):
     start = time.time()
 
     # Define optimizers and loss function
-    optimizer_bert = optim.Adam(params=model.encoder.bert.parameters(), lr=args.bert_lr)
+    optimizer_bert = AdamW(params=model.encoder.bert.parameters(), lr=args.bert_lr)
     optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters()),
                            lr=args.lr)
+    scheduler_bert = get_cosine_schedule_with_warmup(optimizer_bert, 200, args.num_iterations)
+    scheduler = get_cosine_schedule_with_warmup(optimizer, 0, args.num_iterations)
     criterion = nn.CrossEntropyLoss()
 
     # TODO maybe find nicer solution for passing(handling) the tokenizer
@@ -103,6 +105,8 @@ def train(tasks, model, args, device):
         loss.backward()
         optimizer.step()
         optimizer_bert.step()
+        scheduler.step()
+        scheduler_bert.step()
 
         running_loss += loss.item()
         iterations += 1
