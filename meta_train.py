@@ -87,6 +87,10 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     test_task = SentimentAnalysis(cls_dim=args.mlp_dims[-1])
     episodes = torch.load(args.episodes)
 
+    # dummy data to overwrite old values of task model output layer
+    dummy_w = torch.randn((args.mlp_dims[-1], 2))
+    dummy_b = torch.randn(2)
+
     average_query_loss = 0
     best_query_loss = 1e+9
     best_test_mean = -1
@@ -101,6 +105,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         for task_sample in range(meta_batch_size):
             # clone original model
             task_model.proto_net.load_state_dict(model.proto_net.state_dict())
+            task_model.initialize_classifier(nn.Parameter(dummy_w), nn.Parameter(dummy_b), hard_replace=True)
             task_model.to(device)
             task_model.train()
 
@@ -222,7 +227,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
         # evaluate in k shot fashion
         if iterations % args.eval_every == 0:
-            task_model.load_state_dict(model.state_dict())
+            task_model.proto_net.load_state_dict(model.proto_net.state_dict())
+            task_model.initialize_classifier(nn.Parameter(dummy_w), nn.Parameter(dummy_b), hard_replace=True)
             test_mean, test_std = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
             writer.add_scalar('TestTask/Acc', test_mean, iterations)
             writer.add_scalar('TestTask/STD', test_std, iterations)

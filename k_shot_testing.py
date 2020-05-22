@@ -57,7 +57,6 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
         # fine-tune model with some updates on the provided episode
         for update in range(num_updates):
             optimizer_bert.zero_grad()
-
             optimizer.zero_grad()
 
             # get predictions depending on model type
