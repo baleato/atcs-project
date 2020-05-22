@@ -5,7 +5,7 @@ from datetime import timedelta
 
 import torch.nn as nn
 import torch
-from transformers import BertTokenizer, AdamW
+from transformers import BertTokenizer, AdamW, get_cosine_schedule_with_warmup
 
 from util import get_args_meta, get_pytorch_device, load_model
 from tasks import *
@@ -60,12 +60,13 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     print(header)
     start = time.time()
 
-    # Define optimizers and loss function
-    # TODO validate if BertAdam works better and then also use in MTL training
-    optimizer_BERT = optim.Adam(params=model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
+    # Define optimizers, lr schedulers and loss function
+    optimizer_BERT = AdamW(params=model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
     optimizer = optim.Adam(params=chain(model.proto_net.encoder.mlp.parameters(),
                                    model.output_layer.parameters()),
                            lr=args.lr)
+    scheduler_BERT = get_cosine_schedule_with_warmup(optimizer_BERT, 100, meta_iters)
+    scheduler = get_cosine_schedule_with_warmup(optimizer, 0, meta_iters)
     # ProtoNets always have CrossEntropy loss due to softmax output
     cross_entropy = nn.CrossEntropyLoss()
 
@@ -178,6 +179,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         # update model parameters according to the gradients from inner loop (clear gradients afterwards)
         optimizer.step()
         optimizer_BERT.step()
+        scheduler.step()
+        scheduler_BERT.step()
         optimizer.zero_grad()
         optimizer_BERT.zero_grad()
 
@@ -202,6 +205,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                 iter_loss,
                 iter_acc))
 
+            # save best snapshot
             if average_query_loss < best_query_loss:
                 best_query_loss = average_query_loss
                 average_query_loss = 0
