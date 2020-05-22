@@ -224,6 +224,7 @@ def get_args():
     parser.add_argument('--lr', type=float, default=5e-5)
     parser.add_argument('--num_test_batches', type=int, default=10)
     parser.add_argument('--episodes', type=str, default='data/sentiment_episodes_k8.pkl')
+    parser.add_argument('--distance', choices=['euclidean', 'cosine'], default='euclidean')
     args = parser.parse_args()
     return args
 
@@ -249,6 +250,7 @@ def get_args_meta():
     parser.add_argument('--inner_lr', type=float, default=1e-3)
     parser.add_argument('--num_test_batches', type=int, default=10)
     parser.add_argument('--episodes', type=str, default='data/sentiment_episodes_k8.pkl')
+    parser.add_argument('--distance', choices=['euclidean', 'cosine'], default='euclidean')
     args = parser.parse_args()
     return args
 
@@ -274,6 +276,6 @@ def get_test_args():
     parser.add_argument('--num_test_batches', type=int, default=None)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--bert_lr', type=float, default=5e-5)
-
+    parser.add_argument('--distance', choices=['euclidean', 'cosine'], default='euclidean')
     args = parser.parse_args()
     return args
