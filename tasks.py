@@ -342,7 +342,7 @@ class SentimentAnalysis(Task):
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
 
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
         Returns an iterable over the single
         Args:
@@ -362,7 +362,7 @@ class SentimentAnalysis(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)#.unsqueeze(1)
 
-        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
 
     def get_classifier(self):
         return self.classifier
@@ -403,7 +403,7 @@ class IronySubtaskA(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)#.unsqueeze(1)
 
-        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
 
     def get_classifier(self):
         return self.classifier
@@ -444,7 +444,7 @@ class IronySubtaskB(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)#.unsqueeze(1)
 
-        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
 
     def get_classifier(self):
         return self.classifier
@@ -484,7 +484,7 @@ class Abuse(Task):
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)#.unsqueeze(1)
 
-        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
 
     def get_classifier(self):
         return self.classifier
