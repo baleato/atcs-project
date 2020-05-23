@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, NLLLoss
 from sklearn.metrics import jaccard_score, f1_score, accuracy_score
+from sklearn.model_selection import train_test_split
 import numpy as np
 import logging
 import sys
@@ -15,26 +16,39 @@ class Task(object):
     r"""Base class for every task."""
     NAME = 'TASK_NAME'
 
-    def __init__(self):
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
         self.num_classes = None
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1):
+        """
+        Returns an iterable over the single
+        Args:
+            split: train/dev/test
+        Returns:
+            Iterable for the specified split
+        """
         raise NotImplementedError
 
     def get_classifier(self):
-        raise NotImplementedError
+        return self.classifier
 
     def get_loss(self, predictions, labels):
-        raise NotImplementedError
+        return self.criterion(predictions, labels.long())
 
     def calculate_accuracy(self, predictions, labels):
-        raise NotImplementedError
+        new_predictions = predictions.argmax(dim=1, keepdim=False)
+        bin_labels = new_predictions == labels
+        correct = bin_labels.sum().float().item()
+        return correct / len(labels)
 
     def get_name(self):
         return self.NAME
 
     def get_num_classes(self):
         return self.num_classes
+
+    def describe(self):
+        print('No description provided for task {}'.format(self.get_name()))
 
 
 class TaskSamplerIter(object):
@@ -497,3 +511,53 @@ class Abuse(Task):
         bin_labels = new_predictions == labels
         correct = bin_labels.sum().float().item()
         return correct / len(labels)
+
+
+class Politeness(Task):
+    NAME = 'Politeness'
+    """
+    Stanford Politeness Corpus (Wikipedia). Original annotations: 1 = Polite; 0 = Neutral; -1 = impolite.
+    Classes: Impolite(0), Neutral(1), Polite(2)
+    """
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
+        self.num_classes = 3
+        self.classes = {
+            0: 'Impolite',
+            1: 'Neutral',
+            2: 'Polite'
+        }
+        self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
+        self.criterion = CrossEntropyLoss()
+        self.fn_tokenizer = fn_tokenizer
+        self.df = pd.read_csv('data/stanford_politeness_2013/wikipedia-politeness-corpus.csv')
+        self.df['annotation'] = self.df.label  # Original classification {-1, 0, 1}
+        # Due to the use of the CrossEntropyLoss we need the labels to represent indexes (>=0).
+        # Hence we move our labels one up from {-1, 0, 1} to {0, 1, 2}.
+        self.df.label = self.df.label + 1
+        self.df_train, df_tmp = train_test_split(self.df, test_size=0.3, random_state=1)
+        self.df_dev, self.df_test = train_test_split(df_tmp, test_size=0.5, random_state=1)
+
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
+        assert split in ['train', 'dev', 'test']
+        if split == 'train':
+            df = self.df_train
+        elif split == 'dev':
+            df = self.df_dev
+        else:
+            df = self.df_test
+        input_ids, attention_masks = self.fn_tokenizer(df.text, tokenizer, max_length=max_length)
+        labels = torch.tensor(df.label.values)
+        return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
+
+    def describe(self):
+        df = self.df
+        print('Task {}, split(70/15/15)'.format(self.get_name()))
+        print('\tClasses: {}'.format(self.classes))
+        print('\tExamples:')
+        dist = df.label.value_counts().to_dict()
+        for label in sorted(dist.keys()):
+            print('\t\t{}: {} ({:.2%})'.format(self.classes[label], dist[label], dist[label]/len(df)))
+        text_desc = df.text.apply(lambda x: len(x.split(' '))).describe()
+        print('\tText lengths: {:.2f} +/- {:.2f}; [{} (min), {} (25%), {} (50%), {} (75%), {} (max)]'.format(
+            text_desc['mean'], text_desc['std'], text_desc['min'],
+            text_desc['25%'], text_desc['50%'], text_desc['75%'], text_desc['max']))
