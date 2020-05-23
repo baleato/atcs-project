@@ -141,8 +141,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             task_accuracies_inner[sampler.get_name()] = sampler.calculate_accuracy(predictions, support[1].to(device))
 
             # trick to add prototypes back to computation graph
-            W = prototypes + (W - prototypes).detach()
-            b = (prototypes + (b.unsqueeze(-1) - prototypes).detach()).mean(dim=1)
+            W = 2 * prototypes + (W - 2 * prototypes).detach()
+            b = -prototypes.norm(dim=1)**2 + (b + prototypes.norm(dim=1)**2).detach()
             task_model.initialize_classifier(W, b, hard_replace=True)
 
             # calculate gradients for meta update on the query set
@@ -162,13 +162,13 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
             # save gradients of first task model
             if task_sample == 0:
-                for param in task_model.parameters():
+                for param in task_model.parameters().clone():
                     if param.requires_grad and param.grad is not None:
                         grads.append(param.grad)
             # add the gradients of all task samples
             else:
                 p = 0
-                for param in task_model.parameters():
+                for param in task_model.parameters().clone():
                     if param.requires_grad and param.grad is not None:
                         grads[p] += param.grad
                         p += 1
