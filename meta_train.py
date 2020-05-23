@@ -230,12 +230,12 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
             task_model.proto_net.load_state_dict(model.proto_net.state_dict())
             task_model.initialize_classifier(nn.Parameter(dummy_w), nn.Parameter(dummy_b), hard_replace=True)
             test_mean, test_std = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
-            writer.add_scalar('TestTask/Acc', test_mean, iterations)
-            writer.add_scalar('TestTask/STD', test_std, iterations)
+            writer.add_scalar('{}/Acc'.format(test_task.get_name()), test_mean, iterations)
+            writer.add_scalar('{}/STD'.format(test_task.get_name()), test_std, iterations)
             print(test_template.format(test_mean, test_std), flush=True)
             if test_mean > best_test_mean:
                 best_test_mean = test_mean
-                snapshot_prefix = os.path.join(args.save_path, 'best_test')
+                snapshot_prefix = os.path.join(args.save_path, 'best_test_{}'.format(test_task.get_name()))
                 snapshot_path = (
                         snapshot_prefix +
                         '_acc_{:.5f}_iter_{}_model.pt'
