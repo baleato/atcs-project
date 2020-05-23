@@ -28,7 +28,7 @@ pip install --user -r requirements.txt
 model=MTL #ProtoNet ProtoMAML
 k=8
 validation_task=SentimentAnalysis
-for task in SentimentAnalysis IronySubtaskA IronySubtaskB Abuse
+for task in SentimentAnalysis IronySubtaskA IronySubtaskB Abuse Politeness
 do
 	for number in 5 25 100 300
 	do

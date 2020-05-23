@@ -7,6 +7,7 @@ data/*
 !data/irony_a_episodes_k8.pkl
 !data/irony_b_episodes_k8.pkl
 !data/abuse_episodes_k8.pkl
+!data/politeness_episodes_k8.pkl
 results
 .idea/
 .ipynb_checkpoints/

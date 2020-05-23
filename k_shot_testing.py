@@ -125,6 +125,8 @@ if __name__ == '__main__':
         task = IronySubtaskB(cls_dim=args.mlp_dims[-1])
     elif args.task == 'Abuse':
         task = Abuse(cls_dim=args.mlp_dims[-1])
+    elif args.task == 'Politeness':
+        task = Politeness(cls_dim=args.mlp_dims[-1])
     else:
         task = None
         RuntimeError('Unknown evaluation task!')
