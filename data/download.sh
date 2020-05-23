@@ -42,3 +42,9 @@ if [[ ! -f SemEval2018-T3-train-taskB.txt.zip ]]; then
   curl -Lo SemEval2018-T3-train-taskB.txt.zip 'https://drive.google.com/uc?export=download&id=1qFwQ6LPfLIYRe0C9z8rGYDHFBzKT2ivv'
   unzip SemEval2018-T3-train-taskB.txt.zip -d sem_eval_2018
 fi
+
+# Stanford Politeness Corpus; data/stanford_politeness_2013
+if [[ ! -f stanford_politeness_2013.zip ]]; then
+  curl -Lo stanford_politeness_2013.zip 'https://drive.google.com/uc?export=download&id=1UvmaP6iwTHeNm4LVhgIraPFUMQDg8Tic'
+  unzip stanford_politeness_2013.zip -d stanford_politeness_2013
+fi
