@@ -32,13 +32,13 @@ if [[ ! -f tweets_output.zip ]]; then
 fi
 
 # Irony subtask A; data/sem_eval_2018
-if [[ ! -f SemEval2018-T3-train-taskA.txt ]]; then
+if [[ ! -f SemEval2018-T3-train-taskA.txt.zip ]]; then
   curl -Lo SemEval2018-T3-train-taskA.txt.zip 'https://drive.google.com/uc?export=download&id=1ihc9XKBvSIgoGpsp8hrkL-8hEUMi-Tuv'
   unzip SemEval2018-T3-train-taskA.txt.zip -d sem_eval_2018
 fi
 
 # Irony subtask B; data/sem_eval_2018
-if [[ ! -f SemEval2018-T3-train-taskB.txt ]]; then
+if [[ ! -f SemEval2018-T3-train-taskB.txt.zip ]]; then
   curl -Lo SemEval2018-T3-train-taskB.txt.zip 'https://drive.google.com/uc?export=download&id=1qFwQ6LPfLIYRe0C9z8rGYDHFBzKT2ivv'
   unzip SemEval2018-T3-train-taskB.txt.zip -d sem_eval_2018
 fi
