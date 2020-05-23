@@ -5,12 +5,13 @@ from datetime import timedelta
 
 import torch.nn as nn
 import torch
-from transformers import BertTokenizer, AdamW
+from transformers import BertTokenizer, AdamW, get_cosine_schedule_with_warmup
 
 from util import get_args_meta, get_pytorch_device, load_model
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import ProtoMAMLLearner
+from k_shot_testing import k_shot_testing
 from itertools import chain
 
 from datetime import datetime
@@ -54,13 +55,18 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
     header = '      Time      Task      Iteration      Loss      Accuracy'
     log_template = '{:>10} {:>25} {:10.0f} {:10.6f} {:10.6f}'
+    test_template = 'Test mean: {}, Test std: {}'
 
     print(header)
     start = time.time()
 
-    # Define optimizers and loss function
-    # TODO validate if BertAdam works better and then also use in MTL training
-    optimizer = AdamW(params=model.parameters(), lr=args.lr, correct_bias=False)
+    # Define optimizers, lr schedulers and loss function
+    optimizer_bert = AdamW(params=model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
+    optimizer = optim.Adam(params=chain(model.proto_net.encoder.mlp.parameters(),
+                                   model.output_layer.parameters()),
+                           lr=args.lr)
+    scheduler_bert = get_cosine_schedule_with_warmup(optimizer_bert, 200, meta_iters)
+    scheduler = get_cosine_schedule_with_warmup(optimizer, 0, meta_iters)
     # ProtoNets always have CrossEntropy loss due to softmax output
     cross_entropy = nn.CrossEntropyLoss()
 
@@ -68,6 +74,7 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     print('done.')
 
+    # setup task sampler and task model
     sampler = TaskSampler(tasks, method=method, custom_task_ratio=custom_task_ratio, supp_query_split=True)
     task_model = type(model)(args)
 
@@ -76,8 +83,17 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     model.train()
 
+    # setup test task and episodes for evaluation
+    test_task = SentimentAnalysis(cls_dim=args.mlp_dims[-1])
+    episodes = torch.load(args.episodes)
+
+    # dummy data to overwrite old values of task model output layer
+    dummy_w = torch.randn((args.mlp_dims[-1], 2))
+    dummy_b = torch.randn(2)
+
     average_query_loss = 0
     best_query_loss = 1e+9
+    best_test_mean = -1
     # outer loop (meta-iterations)
     for i in range(meta_iters):
         grads = []
@@ -88,12 +104,13 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         # inner loop (sample different tasks)
         for task_sample in range(meta_batch_size):
             # clone original model
-            task_model.load_state_dict(model.state_dict())
+            task_model.proto_net.load_state_dict(model.proto_net.state_dict())
+            task_model.initialize_classifier(nn.Parameter(dummy_w), nn.Parameter(dummy_b), hard_replace=True)
             task_model.to(device)
             task_model.train()
 
             # new optimizer for every new task model
-            task_optimizer_BERT = optim.SGD(params=task_model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
+            task_optimizer_bert = optim.SGD(params=task_model.proto_net.encoder.bert.parameters(), lr=args.bert_lr)
             task_optimizer = optim.SGD(params=chain(task_model.proto_net.encoder.mlp.parameters(),
                                                     task_model.output_layer.parameters()),
                                        lr=args.inner_lr)
@@ -111,13 +128,13 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
             # train some iterations on support set
             for update in range(num_updates):
-                task_optimizer_BERT.zero_grad()
+                task_optimizer_bert.zero_grad()
                 task_optimizer.zero_grad()
                 predictions = task_model(support[0].to(device), attention_mask=support[2].to(device))
                 task_loss = cross_entropy(predictions, support[1].long().squeeze().to(device))
                 task_loss.backward()
                 task_optimizer.step()
-                task_optimizer_BERT.step()
+                task_optimizer_bert.step()
 
             # record task losses and accuracies for logging
             task_losses_inner[sampler.get_name()] = task_loss.item()
@@ -166,11 +183,15 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                 p += 1
         # update model parameters according to the gradients from inner loop (clear gradients afterwards)
         optimizer.step()
+        optimizer_bert.step()
+        scheduler.step()
+        scheduler_bert.step()
         optimizer.zero_grad()
+        optimizer_bert.zero_grad()
 
         iterations += 1
         if iterations % args.log_every == 0:
-            average_query_loss /= args.log_every
+            average_query_loss /= (args.log_every*meta_batch_size)
             iter_loss = sum(task_losses_outer.values()) / len(task_losses_outer.values())
             iter_acc = sum(task_accuracies_outer.values()) / len(task_accuracies_outer.values())
             writer.add_scalar('Meta_Average/Loss/outer'.format(sampler.get_name()), iter_loss, iterations)
@@ -189,10 +210,11 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                 iter_loss,
                 iter_acc))
 
+            # save best snapshot
             if average_query_loss < best_query_loss:
                 best_query_loss = average_query_loss
                 average_query_loss = 0
-                snapshot_prefix = os.path.join(args.save_path, 'best_snapshot')
+                snapshot_prefix = os.path.join(args.save_path, 'best_query')
                 snapshot_path = (
                         snapshot_prefix +
                         '_loss_{:.5f}_iter_{}_model.pt'
@@ -202,6 +224,28 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
                         os.remove(f)
+
+        # evaluate in k shot fashion
+        if iterations % args.eval_every == 0:
+            task_model.proto_net.load_state_dict(model.proto_net.state_dict())
+            task_model.initialize_classifier(nn.Parameter(dummy_w), nn.Parameter(dummy_b), hard_replace=True)
+            test_mean, test_std = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
+            writer.add_scalar('TestTask/Acc', test_mean, iterations)
+            writer.add_scalar('TestTask/STD', test_std, iterations)
+            print(test_template.format(test_mean, test_std), flush=True)
+            if test_mean > best_test_mean:
+                best_test_mean = test_mean
+                snapshot_prefix = os.path.join(args.save_path, 'best_test')
+                snapshot_path = (
+                        snapshot_prefix +
+                        '_acc_{:.5f}_iter_{}_model.pt'
+                ).format(best_test_mean, iterations)
+                model.save_model(snapshot_path)
+                # Keep only the best snapshot
+                for f in glob.glob(snapshot_prefix + '*'):
+                    if f != snapshot_path:
+                        os.remove(f)
+
 
         # saving redundant parameters
         # Save model checkpoints.
@@ -240,9 +284,9 @@ if __name__ == '__main__':
     print("Tasks")
     tasks = []
     for emotion in SemEval18SingleEmotionTask.EMOTIONS:
-        tasks.append(SemEval18SingleEmotionTask(emotion))
-    tasks.append(SarcasmDetection())
-    tasks.append(OffensevalTask())
+        tasks.append(SemEval18SingleEmotionTask(emotion, cls_dim=args.mlp_dims[-1]))
+    tasks.append(SarcasmDetection(cls_dim=args.mlp_dims[-1]))
+    tasks.append(OffensevalTask(cls_dim=args.mlp_dims[-1]))
 
     meta_train(tasks, model, args, device, meta_iters=args.num_iterations,
                num_updates=args.inner_updates, meta_batch_size=args.meta_batch_size)
