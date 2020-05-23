@@ -153,4 +153,4 @@ if __name__ == '__main__':
         torch.save(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
 
     mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches, lr=args.lr, bert_lr=args.bert_lr)
-    print("Mean accuracy: {}, standard deviation: {}".format(mean, stddev))
+    print("Mean accuracy: {}, standard deviation: {}\t{:.2f} +/- {:.1f}".format(mean, stddev, mean * 100, stddev * 100))
