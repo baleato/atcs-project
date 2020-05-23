@@ -125,6 +125,10 @@ if __name__ == '__main__':
         task = IronySubtaskB(cls_dim=args.mlp_dims[-1])
     elif args.task == 'Abuse':
         task = Abuse(cls_dim=args.mlp_dims[-1])
+    elif args.task == "SarcasmDetection":
+        task = SarcasmDetection(cls_dim=args.mlp_dims[-1])
+    elif args.task == "OffenseEval":
+        task = OffensevalTask(cls_dim=args.mlp_dims[-1])
     elif args.task == 'Politeness':
         task = Politeness(cls_dim=args.mlp_dims[-1])
     else:

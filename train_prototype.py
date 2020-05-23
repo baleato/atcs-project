@@ -37,6 +37,7 @@ def train(tasks, model, args, device):
     start = time.time()
 
     # Define optimizers and loss function
+
     optimizer_bert = AdamW(params=model.encoder.bert.parameters(), lr=args.bert_lr)
     optimizer = optim.Adam(params=chain(model.encoder.mlp.parameters()),
                            lr=args.lr)

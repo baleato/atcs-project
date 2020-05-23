@@ -140,6 +140,7 @@ class PrototypeLearner(nn.Module):
             distances.append(f_distance(samples, centroids[i].unsqueeze(0)))
         return torch.stack(distances, dim=1)
 
+
     def save_model(self, snapshot_path):
         state_dicts = self.encoder.get_trainable_params()
         state_dicts['distance'] = self.distance
