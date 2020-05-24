@@ -129,12 +129,12 @@ def train(tasks, model, args, device):
         if iterations % args.eval_every == 0:
             test_model.load_state_dict(model.state_dict())
             test_mean, test_std = k_shot_testing(test_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
-            writer.add_scalar('TestTask/Acc', test_mean, iterations)
-            writer.add_scalar('TestTask/STD', test_std, iterations)
+            writer.add_scalar('{}/Acc'.format(test_task.get_name()), test_mean, iterations)
+            writer.add_scalar('{}/STD'.format(test_task.get_name()), test_std, iterations)
             print(test_template.format(test_mean, test_std), flush=True)
             if test_mean > best_test_mean:
                 best_test_mean = test_mean
-                snapshot_prefix = os.path.join(args.save_path, 'best_test')
+                snapshot_prefix = os.path.join(args.save_path, 'best_test_{}'.format(test_task.get_name()))
                 snapshot_path = (
                         snapshot_prefix +
                         '_acc_{:.5f}_iter_{}_model.pt'
@@ -192,4 +192,3 @@ if __name__ == '__main__':
         model = PrototypeLearner(args)
     model.to(device)
     results = train(tasks, model, args, device)
-
