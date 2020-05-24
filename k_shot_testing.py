@@ -129,6 +129,8 @@ if __name__ == '__main__':
         task = SarcasmDetection(cls_dim=args.mlp_dims[-1])
     elif args.task == "OffenseEval":
         task = OffensevalTask(cls_dim=args.mlp_dims[-1])
+    elif args.task == "Politeness":
+        task = Politeness(clas_dim=args.mlp_dims[-1])
     else:
         task = None
         RuntimeError('Unknown evaluation task!')
