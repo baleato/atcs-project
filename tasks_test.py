@@ -16,6 +16,11 @@ class TestModels(unittest.TestCase):
     def setUp(self):
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
+    def _test_task_iters(self, task):
+        for split in ['train', 'dev', 'test']:
+            task_iter = task.get_iter(split, self.tokenizer)
+            print('{} {} {}'.format(task.get_name(), split, len(task_iter)))
+
     def _test_task(self, task):
         classifier = task.get_classifier()
         task_iter = task.get_iter('dev', self.tokenizer)
@@ -29,7 +34,7 @@ class TestModels(unittest.TestCase):
             predictions = classifier(output)
             loss = task.get_loss(predictions, labels)
             acc = task.calculate_accuracy(predictions, labels)
-            self.assertTrue(0 < acc < 1)
+            self.assertTrue(0 <= acc <= 1)
             break
         task.describe()
 
@@ -44,7 +49,8 @@ class TestModels(unittest.TestCase):
                 tasks.IronySubtaskB(),
                 tasks.Abuse(),
                 tasks.Politeness()]:
-            self._test_task(task)
+            # self._test_task(task)
+            self._test_task_iters(task)
 
 
 if __name__ == '__main__':

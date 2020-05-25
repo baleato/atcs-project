@@ -145,7 +145,7 @@ def make_dataloader(dataset_id, input_ids, labels, attention_masks, batch_size=1
     dataloader = DataLoader(dataset,
                             sampler=sampler,
                             batch_size=batch_size,
-                            drop_last=True
+                            drop_last=False
                             )
     return dataloader
 
@@ -225,6 +225,8 @@ def get_args():
     parser.add_argument('--num_test_batches', type=int, default=10)
     parser.add_argument('--episodes', type=str, default='data/sentiment_episodes_k8.pkl')
     parser.add_argument('--distance', choices=['euclidean', 'cosine'], default='euclidean')
+    parser.add_argument('--single_train_task', choices=['SentimentAnalysis', 'IronySubtaskA', 'IronySubtaskB', 'Abuse', 'Politeness']),
+    parser.add_argument('--max_epochs', type=int, default=10),
     args = parser.parse_args()
     return args
 
