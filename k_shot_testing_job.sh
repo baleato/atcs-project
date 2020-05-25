@@ -25,17 +25,24 @@ cd ${WORKING_DIR}/atcs-project
 
 pip install --user -r requirements.txt
 
+model_path=~/results_Multitask_SentimentAnalysis_batch32_mlp768_lr5e-5_iter3000/best_test*_model.pt
 model=MTL #ProtoNet ProtoMAML
 k=8
 validation_task=SentimentAnalysis
-for task in SentimentAnalysis IronySubtaskA IronySubtaskB Abuse Politeness
+for task in IronySubtaskA IronySubtaskB Abuse Politeness
 do
-	for number in 5 25 100 300
+	for k in 4 8 16
 	do
-		echo =================== ${model} val:${validation_task} - test:${task} - ${number} updates ====================
-		srun python k_shot_testing.py \
-			--model_path ~/results_${model}_${validation_task}/best_test_*_model.pt \
-			--model ${model} --task ${task} --k ${k} --num_updates ${number} \
-		 	--episodes episodes/${task}_k${k}.pkl
+		for number in 5 25 100 300
+		do
+			echo =================== ${model} val:${validation_task} - test:${task} - ${k}-shot - ${number} updates ====================
+			srun python k_shot_testing.py \
+				--model_path ${model_path} \
+				--batch_size 32 \
+				--mlp_dims 768 \
+				--lr 5e-5 \
+				--model ${model} --task ${task} --k ${k} --num_updates ${number} \
+				--episodes episodes/${task}_k${k}.pkl
+		done
 	done
 done

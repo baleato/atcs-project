@@ -12,7 +12,14 @@ import torch.optim as optim
 import torch.nn as nn
 
 
-def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=1e-3, bert_lr=5e-5, zero_init=False):
+def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=1e-3, bert_lr=5e-5, zero_init=False, save_pred=None, path="predictions"):
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    # save initial state of the model
+    initial_state = model.state_dict()
+
     # get iterator over test task
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     test_iter = test_task.get_iter('test', tokenizer, shuffle=False)
@@ -43,6 +50,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
 
     episode_accs = []
     for episode in episodes:
+        model.load_state_dict(initial_state)
         model.train()
         # setup output layer for ProtoMAML and MTL
         if isinstance(model, ProtoMAMLLearner):
@@ -82,6 +90,9 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
         with torch.no_grad():
             model.eval()
             accuracies = []
+            preds = {}
+            preds['raw'] = []
+            preds['class'] = []
             batches_tested = 0
             for batch in test_iter:
                 if isinstance(model, MultiTaskLearner):
@@ -93,10 +104,19 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
                     predictions = model(batch[0].to(device), attention_mask=batch[2].to(device))
                 acc = test_task.calculate_accuracy(predictions, batch[1].to(device))
                 accuracies.append(acc)
+                if save_pred is not None:
+                    preds['raw'].append(predictions)
+                    preds['class'].append(predictions.argmax(dim=1, keepdim=False))
                 batches_tested += 1
                 if batches_tested == num_test_batches:
                     break
         episode_accs.append(np.asarray(accuracies).mean())
+        if save_pred is not None:
+            preds['raw'] = torch.cat(preds['raw'], dim=0).cpu()
+            preds['class'] = torch.cat(preds['class'], dim=0).cpu()
+            # save predictions
+            preds_path = 'predictions_{}_{}.pkl'.format(save_pred, task.get_name())
+            torch.save(preds, open(os.path.join(path, preds_path), "wb"))
 
     return np.asarray(episode_accs).mean(), np.asarray(episode_accs).std()
 
@@ -156,7 +176,8 @@ if __name__ == '__main__':
     else:
         episodes = sample_episodes(args.k, task, tokenizer, args.generate_episodes)
         random_id = int(np.random.randint(0, 10000, 1))
-        torch.save(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
+        torch.save(episodes, open(args.save_path+"/{}_episodes_k{}.pkl".format(task.get_name(), args.k), "wb"))
 
-    mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches, lr=args.lr, bert_lr=args.bert_lr)
+    mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches,
+                                  lr=args.lr, bert_lr=args.bert_lr, save_pred=args.model)
     print("Mean accuracy: {}, standard deviation: {}\t{:.2f} +/- {:.1f}".format(mean, stddev, mean * 100, stddev * 100))

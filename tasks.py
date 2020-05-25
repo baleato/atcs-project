@@ -12,6 +12,15 @@ from models import SLClassifier
 from util import bert_tokenizer, make_dataloader
 
 
+def _train_dev_test_split(df):
+    """
+    Returns test splits 70/15/15 for the dataframe given
+    """
+    df_train, df_tmp = train_test_split(df, test_size=0.3, random_state=1)
+    df_dev, df_test = train_test_split(df_tmp, test_size=0.5, random_state=1)
+    return df_train, df_dev, df_test
+
+
 class Task(object):
     r"""Base class for every task."""
     NAME = 'TASK_NAME'
@@ -49,6 +58,16 @@ class Task(object):
 
     def describe(self):
         print('No description provided for task {}'.format(self.get_name()))
+
+    def _get_dataframe(self, split):
+        assert split in ['train', 'dev', 'test']
+        if split == 'train':
+            df = self.df_train
+        elif split == 'dev':
+            df = self.df_dev
+        else:
+            df = self.df_test
+        return df
 
 
 class TaskSamplerIter(object):
@@ -355,6 +374,11 @@ class SentimentAnalysis(Task):
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
+        df = pd.read_csv('data/sem_eval_2015/tweets_output.txt',header=None, sep='\t', names=['ID1', 'ID2', 'label','sentence'])
+        df = df[df.label != 'neutral']
+        df = df[df.label != 'objective']
+        self.df = df[df.label != 'objective-OR-neutral']
+        self.df_train, self.df_dev, self.df_test = _train_dev_test_split(self.df)
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
@@ -365,10 +389,7 @@ class SentimentAnalysis(Task):
             Iterable for the specified split
         """
         # current iter will have only two classes; we could extend it to have more
-        df = pd.read_csv('data/sem_eval_2015/tweets_output.txt',header=None, sep='\t', names=['ID1', 'ID2', 'label','sentence'])
-        df = df[df.label != 'neutral']
-        df = df[df.label != 'objective']
-        df = df[df.label != 'objective-OR-neutral']
+        df = self._get_dataframe(split)
 
         sentences = df.sentence.values
         labels = np.where(df.label.values == 'positive', 1, 0)
@@ -399,6 +420,8 @@ class IronySubtaskA(Task):
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
+        self.df = pd.read_csv('data/sem_eval_2018/SemEval2018-T3-train-taskA.txt', sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
+        self.df_train, self.df_dev, self.df_test = _train_dev_test_split(self.df)
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
@@ -409,7 +432,7 @@ class IronySubtaskA(Task):
             Iterable for the specified split
         """
         # current iter will have only two classes; we could extend it to have more
-        df = pd.read_csv('data/sem_eval_2018/SemEval2018-T3-train-taskA.txt', sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
+        df = self._get_dataframe(split)
 
         sentences = df.Tweet_text.values
         labels = np.where(df.Label.values == 1, 1, 0)
@@ -440,6 +463,8 @@ class IronySubtaskB(Task):
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
+        self.df = pd.read_csv('data/sem_eval_2018/SemEval2018-T3-train-taskB.txt', sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
+        self.df_train, self.df_dev, self.df_test = _train_dev_test_split(self.df)
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
@@ -450,7 +475,7 @@ class IronySubtaskB(Task):
             Iterable for the specified split
         """
         # current iter will have only two classes; we could extend it to have more
-        df = pd.read_csv('data/sem_eval_2018/SemEval2018-T3-train-taskB.txt', sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
+        df = self._get_dataframe(split)
 
         sentences = df.Tweet_text.values
         labels = df.Label.values
@@ -480,6 +505,8 @@ class Abuse(Task):
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
+        self.df = pd.read_csv('data/tweet_wassem/twitter_data_waseem_hovy.csv', sep=',', header=0, names=['Tweet_index', 'Tweet_text', 'Label'])
+        self.df_train, self.df_dev, self.df_test = _train_dev_test_split(self.df)
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
@@ -490,7 +517,7 @@ class Abuse(Task):
             Iterable for the specified split
         """
         # current iter will have only two classes; we could extend it to have more
-        df = pd.read_csv('data/tweet_wassem/twitter_data_waseem_hovy.csv', sep=',', header=0, names=['Tweet_index', 'Tweet_text', 'Label'])
+        df = self._get_dataframe(split)
 
         sentences = df.Tweet_text.values
         labels = df.Label.values
@@ -534,8 +561,7 @@ class Politeness(Task):
         # Due to the use of the CrossEntropyLoss we need the labels to represent indexes (>=0).
         # Hence we move our labels one up from {-1, 0, 1} to {0, 1, 2}.
         self.df.label = self.df.label + 1
-        self.df_train, df_tmp = train_test_split(self.df, test_size=0.3, random_state=1)
-        self.df_dev, self.df_test = train_test_split(df_tmp, test_size=0.5, random_state=1)
+        self.df_train, self.df_dev, self.df_test = _train_dev_test_split(self.df)
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         assert split in ['train', 'dev', 'test']
