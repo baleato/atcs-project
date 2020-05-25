@@ -176,7 +176,7 @@ if __name__ == '__main__':
     else:
         episodes = sample_episodes(args.k, task, tokenizer, args.generate_episodes)
         random_id = int(np.random.randint(0, 10000, 1))
-        torch.save(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
+        torch.save(episodes, open(args.save_path+"/{}_episodes_k{}.pkl".format(task.get_name(), args.k), "wb"))
 
     mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches,
                                   lr=args.lr, bert_lr=args.bert_lr, save_pred=args.model)
