@@ -42,7 +42,7 @@ do
 				--mlp_dims 768 \
 				--lr 5e-5 \
 				--model ${model} --task ${task} --k ${k} --num_updates ${number} \
-				--episodes episodes/${task}_k${k}.pkl
+				--episodes new_episodes/${task}_k${k}.pkl
 		done
 	done
 done
