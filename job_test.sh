@@ -26,4 +26,4 @@ cd ${WORKING_DIR}/atcs-project
 
 pip install --user -r requirements.txt
 
-srun python k_shot_testing.py --episodes "data/sentiment_episodes_k8.pkl" --num_updates 25 --model_path "0_Narrow_cls_512_256/best_test.pt"
+srun python k_shot_testing.py --episodes "new_episodes/SentimentAnaylsis_episodes_k8.pkl" --num_updates 25 --model_path "0_Narrow_cls_512_256/best_test.pt"
