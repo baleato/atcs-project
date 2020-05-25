@@ -17,6 +17,9 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
     if not os.path.exists(path):
         os.makedirs(path)
 
+    # save initial state of the model
+    initial_state = model.state_dict()
+
     # get iterator over test task
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     test_iter = test_task.get_iter('test', tokenizer, shuffle=False)
@@ -47,6 +50,7 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
 
     episode_accs = []
     for episode in episodes:
+        model.load_state_dict(initial_state)
         model.train()
         # setup output layer for ProtoMAML and MTL
         if isinstance(model, ProtoMAMLLearner):
