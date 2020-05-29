@@ -1,7 +1,7 @@
 import os
 from itertools import chain
 
-
+import copy
 from transformers import BertTokenizer, AdamW
 
 from util import get_test_args, get_pytorch_device, load_model
@@ -19,9 +19,9 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
 
     # save initial state of the model
     if isinstance(model, ProtoMAMLLearner):
-        initial_state = model.proto_net.state_dict()
+        initial_state = copy.deepcopy(model.proto_net.state_dict())
     else:
-        initial_state = model.state_dict()
+        initial_state = copy.deepcopy(model.state_dict())
 
     # get iterator over test task
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
@@ -55,9 +55,9 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
     for episode in episodes:
         # reset model to initial state
         if isinstance(model, ProtoMAMLLearner):
-            model.proto_net.load_state_dict(initial_state)
+            model.proto_net.load_state_dict(copy.deepcopy(initial_state))
         else:
-            model.load_state_dict(initial_state)
+            model.load_state_dict(copy.deepcopy(initial_state))
         model.train()
         # setup output layer for ProtoMAML and MTL
         if isinstance(model, ProtoMAMLLearner):
