@@ -2,12 +2,14 @@ __pycache__
 .DS_Store
 
 data/*
+!data/episodes/*
 !data/download.sh
 !data/sentiment_episodes_k8.pkl
 !data/irony_a_episodes_k8.pkl
 !data/irony_b_episodes_k8.pkl
 !data/abuse_episodes_k8.pkl
 !data/politeness_episodes_k8.pkl
+!data/episodes
 results
 .idea/
 .ipynb_checkpoints/
