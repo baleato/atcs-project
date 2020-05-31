@@ -65,7 +65,8 @@ https://drive.google.com/drive/u/0/folders/1bfTU8SV0xNzlpr_h4CjaUWqNMmZ28Dl8
 
 ## Running examples
 
-To train a model just execute the corresponding line in a terminal:
+To train a model just execute the corresponding line in a terminal:  
+
 Multitask model
 ```sh
 $ python train.py --save_path "path_to_checkpoint_dir"
@@ -89,9 +90,10 @@ To perform k-shot testing for a model run the following command:
 $ python k_shot_testing.py --model_path "model_checkpoint_path.pt" --model "model_name" --task "testing_task_name" --k 4 \
                            --episodes "path_to_my_episodes.pkl"
 ```
-If you do not specify saved episodes the testing will just randomly sample episodes from the test task training set.
-Please check the other possible arguments in the argparser help to get an overview over the the functionality.
-:exclamation: Note: if you change the MLP architecture then you also have to specify ```--mlp_dims``` with the right amount of layers and hidden neurons. The testing will print the mean test accuracy and the standard deviation over episodes.
+The testing will print the mean test accuracy and the standard deviation over episodes once the evaluation is completed.  
+If you do not specify saved episodes the testing will just randomly sample episodes from the test task training set.  
+Please check the other possible arguments in the argparser help to get an overview over the the functionality.  
+:exclamation: Note: if you change the MLP architecture then you also have to specify ```--mlp_dims``` with the right amount of layers and hidden neurons.
 
 ## Authors
 
