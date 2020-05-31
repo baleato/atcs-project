@@ -45,10 +45,19 @@ data/
 │   ├── testset-levela.tsv
 │   ├── testset-levelb.tsv
 │   └── testset-levelc.tsv
+├── sem_eval_2015
+│   └── tweets_output.txt
+├── sem_eval_2018
+│   ├── SemEval2018-T3-train-taskA.txt
+│   └── SemEval2018-T3-train-taskB.txt
 ├── semeval18_task1_class
 │   ├── dev.txt
 │   ├── test.txt
 │   └── train.txt
+├── stanford_politeness_2013
+│   ├── README.txt
+│   ├── stack-exchange-politeness-corpus.csv
+│   └── wikipedia-politeness-corpus.csv
 ├── tweet_wassem
 │   └── twitter_data_waseem_hovy.csv
 └── twitter
