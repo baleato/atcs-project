@@ -11,14 +11,17 @@ The dependencies can be installed by running:
 $ pip install -r requirements.txt
 ```
 
-## Tasks & datasets
-
+## Tasks & datasets  
+### Training Tasks
 - Emotion classification - [SemEval-2018 Task 1: Affect in Tweets (AIA-2018)](https://competitions.codalab.org/competitions/17751)
 - Sarcasm detection - [The Shared Task on Sarcasm Detection (ACL 2020)](https://competitions.codalab.org/competitions/22247)
-- Sentiment classification
-- Offensive Language Identification (OLID)
-- Abusive language detection: [data-twitter-wh; Waseem and Hovy 2016](https://github.com/zeerakw/hatespeech)
-- Politeness: [Stanford Politeness Corpus](http://www.cs.cornell.edu/~cristian/Politeness.html).
+- Offensive Language Identification (OLID) - [SemEval 2019  Task 6: OffensEval](https://sites.google.com/site/offensevalsharedtask/olid)   
+### Validation Task
+- Sentiment classification - [SemEval-2015 Task 10: Sentiment Analysis in Twitter](http://alt.qcri.org/semeval2015/task10/)  
+### Testing Tasks
+- Irony Detection (Task A & B) - [SemEval-2018 Task 3: Irony detection in English tweets](https://competitions.codalab.org/competitions/17468)  
+- Abusive language detection - [data-twitter-wh; Waseem and Hovy 2016](https://github.com/zeerakw/hatespeech)
+- Politeness - [Stanford Politeness Corpus](http://www.cs.cornell.edu/~cristian/Politeness.html).
   :exclamation:	This dataset is based on web-forum interactions and not Twitter data.
 
 To download the datasets go to the data directory and execute the download script:
