@@ -205,6 +205,40 @@ def parse_nonlinearity(nonlinearity_str):
     else:
         return torch.nn.Tanh()
 
+# FIXME: tasks are imported at this point to avoid a circular dependency:
+# tasks [*] -> models [SLClassifier] -> util [parse_nonlinearity]
+from tasks import *
+
+def get_task_by_name(args, task_name):
+    if 'Offenseval' == task_name:
+        return OffensevalTask(cls_dim=args.mlp_dims[-1])
+    elif 'SarcasmDetection' == task_name:
+        return SarcasmDetection(cls_dim=args.mlp_dims[-1])
+    elif 'SentimentAnalysis' == task_name:
+        return SentimentAnalysis(cls_dim=args.mlp_dims[-1])
+    elif 'IronySubtaskA' == task_name:
+        return IronySubtaskA(cls_dim=args.mlp_dims[-1])
+    elif 'IronySubtaskB' == task_name:
+        return IronySubtaskB(cls_dim=args.mlp_dims[-1])
+    elif 'Abuse' == task_name:
+        return Abuse(cls_dim=args.mlp_dims[-1])
+    elif 'Politeness' == task_name:
+        return Politeness(cls_dim=args.mlp_dims[-1])
+    else:
+        raise ValueError('Unknown task: {}'.format(task_name))
+
+def get_training_tasks(args):
+    tasks = []
+    for task_name in args.training_tasks:
+        if 'SemEval18' == task_name:
+            for emotion in SemEval18SingleEmotionTask.EMOTIONS:
+                tasks.append(SemEval18SingleEmotionTask(emotion, cls_dim=args.mlp_dims[-1]))
+        else:
+            tasks.append(get_task_by_name(args, task_name))
+    return tasks
+
+def get_validation_task(args):
+    return get_task_by_name(args, args.validation_task)
 
 def get_args():
     parser = ArgumentParser()
@@ -228,8 +262,11 @@ def get_args():
     args = parser.parse_args()
     return args
 
-
-def get_args_meta():
+TASK_NAMES = [
+    'Abuse', 'IronySubtaskA', 'IronySubtaskB', 'Offenseval', 'Politeness',
+    'SarcasmDetection', 'SemEval18', 'SentimentAnalysis',
+]
+def get_args_meta(args=None):
     parser = ArgumentParser()
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--save_path', type=str, default='results')
@@ -251,8 +288,10 @@ def get_args_meta():
     parser.add_argument('--num_test_batches', type=int, default=10)
     parser.add_argument('--episodes', type=str, default='data/sentiment_episodes_k8.pkl')
     parser.add_argument('--distance', choices=['euclidean', 'cosine'], default='euclidean')
-    args = parser.parse_args()
-    return args
+    parser.add_argument('--training_tasks', nargs='*', choices=TASK_NAMES,
+        default=['SemEval18', 'Offenseval', 'SarcasmDetection'])
+    parser.add_argument('--validation_task', default='SentimentAnalysis', choices=TASK_NAMES)
+    return parser.parse_args(args=args)
 
 def get_test_args():
     parser = ArgumentParser()

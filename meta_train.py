@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch
 from transformers import BertTokenizer, AdamW, get_cosine_schedule_with_warmup
 
-from util import get_args_meta, get_pytorch_device, load_model
+from util import get_args_meta, get_pytorch_device, load_model, get_training_tasks, get_validation_task
 from tasks import *
 from torch.utils.tensorboard import SummaryWriter
 from models import ProtoMAMLLearner
@@ -83,8 +83,8 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     model.train()
 
-    # setup test task and episodes for evaluation
-    test_task = SentimentAnalysis(cls_dim=args.mlp_dims[-1])
+    # setup validation task and episodes for evaluation
+    val_task = get_validation_task(args)
     episodes = torch.load(args.episodes)
 
     # dummy data to overwrite old values of task model output layer
@@ -229,13 +229,13 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
         if iterations % args.eval_every == 0:
             task_model.proto_net.load_state_dict(model.proto_net.state_dict())
             task_model.initialize_classifier(nn.Parameter(dummy_w), nn.Parameter(dummy_b), hard_replace=True)
-            test_mean, test_std = k_shot_testing(task_model, episodes, test_task, device, num_test_batches=args.num_test_batches)
-            writer.add_scalar('{}/Acc'.format(test_task.get_name()), test_mean, iterations)
-            writer.add_scalar('{}/STD'.format(test_task.get_name()), test_std, iterations)
+            test_mean, test_std = k_shot_testing(task_model, episodes, val_task, device, num_test_batches=args.num_test_batches)
+            writer.add_scalar('{}/Acc'.format(val_task.get_name()), test_mean, iterations)
+            writer.add_scalar('{}/STD'.format(val_task.get_name()), test_std, iterations)
             print(test_template.format(test_mean, test_std), flush=True)
             if test_mean > best_test_mean:
                 best_test_mean = test_mean
-                snapshot_prefix = os.path.join(args.save_path, 'best_test_{}'.format(test_task.get_name()))
+                snapshot_prefix = os.path.join(args.save_path, 'best_test_{}'.format(val_task.get_name()))
                 snapshot_path = (
                         snapshot_prefix +
                         '_acc_{:.5f}_iter_{}_model.pt'
@@ -281,12 +281,6 @@ if __name__ == '__main__':
         model = ProtoMAMLLearner(args)
 
     model.to(device)
-    print("Tasks")
-    tasks = []
-    for emotion in SemEval18SingleEmotionTask.EMOTIONS:
-        tasks.append(SemEval18SingleEmotionTask(emotion, cls_dim=args.mlp_dims[-1]))
-    tasks.append(SarcasmDetection(cls_dim=args.mlp_dims[-1]))
-    tasks.append(OffensevalTask(cls_dim=args.mlp_dims[-1]))
-
+    tasks = get_training_tasks(args)
     meta_train(tasks, model, args, device, meta_iters=args.num_iterations,
                num_updates=args.inner_updates, meta_batch_size=args.meta_batch_size)
