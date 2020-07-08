@@ -11,7 +11,7 @@ from torch.utils.data import TensorDataset
 from transformers import BertModel
 
 
-def bert_tokenizer(sentences, tokenizer, max_length=32):
+def bert_tokenizer(sentences, tokenizer, max_length=64):
     input_ids = []
     attention_masks = []
     for sentence in sentences:
