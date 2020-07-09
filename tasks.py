@@ -156,7 +156,7 @@ class TaskSampler(Task):
         self.custom_task_ratio = custom_task_ratio
         self.supp_query_split = supp_query_split
 
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32):
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state,
                                     supp_query_split=self.supp_query_split) for task in self.tasks]
         self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
@@ -185,6 +185,7 @@ class TaskSampler(Task):
     def get_num_classes(self):
         return self._get_current_tasks().num_classes
 
+
 class SemEval18Task(Task):
     NAME = 'SemEval18'
     """
@@ -201,7 +202,7 @@ class SemEval18Task(Task):
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
 
-    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=32, supp_query_split=False):
+    def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
         Returns an iterable over the single
         Args:
