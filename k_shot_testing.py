@@ -12,7 +12,7 @@ import torch.optim as optim
 import torch.nn as nn
 
 
-def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=1e-3, bert_lr=5e-5, zero_init=False, save_pred=None, path="predictions"):
+def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_batches=None, lr=1e-3, bert_lr=5e-5, zero_init=False, save_pred=None, path="predictions", init_linear_with_centroids=False):
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -65,6 +65,14 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
             prototypes = model.proto_net.calculate_centroids((proto_embeddings, episode[1]), test_task.num_classes)
             W, b = model.calculate_output_params(prototypes.detach())
             model.initialize_classifier(W, b)
+        elif init_linear_with_centroids and isinstance(model, MultiTaskLearner):
+            print('Initialise with centroids')
+            proto_embeddings = model.encoder(episode[0].to(device), attention_mask=episode[2].to(device))
+            _self = None
+            prototypes = PrototypeLearner.calculate_centroids(_self, (proto_embeddings, episode[1]), test_task.num_classes)
+            W, b = ProtoMAMLLearner.calculate_output_params(_self, prototypes.detach())
+            out_MTL_layer.network[0].weight.data = W
+            out_MTL_layer.network[0].bias.data = b
         elif zero_init and isinstance(model, MultiTaskLearner):
             out_MTL_layer.weight.data = torch.zeros_like(out_MTL_layer.weight.data)
             out_MTL_layer.bias.data = torch.zeros_like(out_MTL_layer.bias.data)
@@ -186,5 +194,5 @@ if __name__ == '__main__':
         torch.save(episodes, open(args.save_path+"/episodes_{}.pkl".format(random_id), "wb"))
 
     mean, stddev = k_shot_testing(model, episodes, task, device, args.num_updates, args.num_test_batches,
-                                  lr=args.lr, bert_lr=args.bert_lr, save_pred=args.model)
+                                  lr=args.lr, bert_lr=args.bert_lr, save_pred=args.model, init_linear_with_centroids=args.init_linear_with_centroids)
     print("Mean accuracy: {}, standard deviation: {}\t{:.2f} +/- {:.1f}".format(mean, stddev, mean * 100, stddev * 100))
