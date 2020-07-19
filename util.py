@@ -21,7 +21,8 @@ def bert_tokenizer(sentences, tokenizer, max_length=64):
             max_length=max_length,
             pad_to_max_length=True,
             return_attention_mask=True,
-            return_tensors='pt'  # returns results already as pytorch tensors
+            return_tensors='pt',  # returns results already as pytorch tensors
+            truncation=True  # must be explicitly true since version 3.0.1 if max_length is used
         )
         input_ids.append(encoded_dict['input_ids'])
         attention_masks.append(encoded_dict['attention_mask'])
