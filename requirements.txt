@@ -3,7 +3,7 @@ tensorboard
 tokenizers
 torch==1.5.1+cu101 
 torchvision==0.6.1+cu101
-transformers==2.11.0
+transformers
 numpy
 scipy==1.1.0
 pandas
