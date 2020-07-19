@@ -6,7 +6,7 @@ from transformers import BertTokenizer, AdamW
 
 from util import get_test_args, get_pytorch_device, load_model
 from tasks import *
-from models import MultiTaskLearner, PrototypeLearner, ProtoMAMLLearner
+from models import MultiTaskLearner, PrototypeLearner, ProtoMAMLLearner, Encoder
 
 import torch.optim as optim
 import torch.nn as nn
@@ -146,6 +146,8 @@ def sample_episodes(k, task, tokenizer, num_episodes=10):
 
 if __name__ == '__main__':
     args = get_test_args()
+    if args.mlp_dims == [0]:
+        args.mlp_dims = []
     for key, value in vars(args).items():
         print(key + ' : ' + str(value))
     device = get_pytorch_device(args)
@@ -159,7 +161,10 @@ if __name__ == '__main__':
     elif args.task == 'IronySubtaskB':
         task = IronySubtaskB(cls_dim=args.mlp_dims[-1])
     elif args.task == 'Abuse':
-        task = Abuse(cls_dim=args.mlp_dims[-1])
+        if args.mlp_dims == []:
+            task = Abuse(cls_dim=768)
+        else:
+            task = Abuse(cls_dim=args.mlp_dims[-1])
     elif args.task == "SarcasmDetection":
         task = SarcasmDetection(cls_dim=args.mlp_dims[-1])
     elif args.task == "OffenseEval":
@@ -180,7 +185,8 @@ if __name__ == '__main__':
     else:
         model = None
         RuntimeError('Unknown model type!')
-    model.load_model(args.model_path, device)
+    if not args.dont_load_model:
+        model.load_model(args.model_path, device)
     if isinstance(model, MultiTaskLearner):
         model.add_task_classifier(task.get_name(), task.get_classifier().to(device))
     model.eval()

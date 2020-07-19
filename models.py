@@ -175,7 +175,10 @@ class ProtoMAMLLearner(nn.Module):
     def __init__(self, config):
         super(ProtoMAMLLearner, self).__init__()
         self.proto_net = PrototypeLearner(config)
-        self.output_layer = nn.Linear(config.mlp_dims[-1], 2)
+        if config.mlp_dims == []:
+            self.output_layer = nn.Linear(768, 2)
+        else:
+            self.output_layer = nn.Linear(config.mlp_dims[-1], 2)
 
     def calculate_output_params(self, prototypes):
         W = 2 * prototypes

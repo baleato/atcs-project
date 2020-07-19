@@ -317,5 +317,6 @@ def get_test_args():
     parser.add_argument('--init_linear_with_centroids', default=False, action='store_true')
     parser.add_argument('--bert_lr', type=float, default=5e-5)
     parser.add_argument('--distance', choices=['euclidean', 'cosine'], default='euclidean')
+    parser.add_argument('--dont_load_model', default=False, action='store_true')
     args = parser.parse_args()
     return args
