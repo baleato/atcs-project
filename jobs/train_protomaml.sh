@@ -12,6 +12,7 @@
 module purge
 
 module load pre2019
+module load 2019
 module load Python/3.6.3-foss-2017b
 module load CUDA/10.1.243
 module load cuDNN/7.6.5.32-CUDA-10.1.243
@@ -23,6 +24,7 @@ mkdir -p ${WORKING_DIR}
 cp -r ~/atcs-project ${WORKING_DIR}/
 cd ${WORKING_DIR}/atcs-project
 
+pip install --user torch==1.5.1+cu101 torchvision==0.6.1+cu101 -f https://download.pytorch.org/whl/torch_stable.html
 pip install --user -r requirements.txt
 
 srun python meta_train.py --mlp_dims 768 --batch_size 16 --meta_batch_size 32 --eval_every 100 --lr 1e-4 --inner_lr 1e-3 --num_iterations 3000 \
