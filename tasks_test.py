@@ -53,5 +53,25 @@ class TestModels(unittest.TestCase):
             self._test_task_iters(task)
 
 
+class DummyTask(tasks.Task):
+    def __init__(self, iterable):
+        self.iterable = iterable
+
+    def get_iter(self, *args, **argv):
+        return self.iterable
+
+
+class TestSamplers(unittest.TestCase):
+    def test_task_sampler_episodic_fashion(self):
+        taskA = DummyTask([0, 2])
+        taskB = DummyTask([1, 3])
+        sampler = tasks.TaskSampler([taskA, taskB], custom_task_ratio=[0.5, 0.5])
+        sampler_iter = sampler.get_iter(split=None, tokenizer=None)
+        batches = []
+        for i in range(len(sampler_iter) * 2):
+            batches.append(next(sampler_iter))
+        self.assertEqual(batches, [0, 1, 2, 3, 0, 1, 2, 3])
+
+
 if __name__ == '__main__':
     unittest.main()

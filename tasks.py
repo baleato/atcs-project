@@ -115,6 +115,7 @@ class TaskSamplerIter(object):
 
                 # if iterator is empty initialize new iterator from original dataloader
                 task_iter = iter(self.original_dataloaders[task_index])
+                self.task_iters[task_index] = task_iter
                 batch = next(task_iter)
 
             self.task_index = task_index
