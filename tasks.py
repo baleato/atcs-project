@@ -6,11 +6,21 @@ from sklearn.metrics import jaccard_score, f1_score, accuracy_score
 from sklearn.model_selection import train_test_split
 import numpy as np
 import logging
-import sys
+import re
 
 from models import SLClassifier
 from util import bert_tokenizer, make_dataloader
 
+def adjust_twitter_tokenization(sentences):
+    re_mnt = re.compile('@\S+')
+    re_hashtag = re.compile('#\S+')
+    re_url = re.compile('(ftp|http)://.*\.(jpg|png)$')
+    for i, sentence in enumerate(sentences):
+        # replace a user mention with the mention token and delete all hashtags
+        sentence = re_mnt.sub('[MNT]', sentence)
+        sentence = re_hashtag.sub('', sentence)
+        sentences[i] = re_url.sub('[URL]', sentence)
+    return sentences
 
 def _train_dev_test_split(df):
     """
@@ -215,6 +225,7 @@ class SemEval18Task(Task):
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
         data_df = pd.read_csv('./data/semeval18_task1_class/{}.txt'.format(split), sep='\t')
         sentences = data_df.Tweet.values
+        sentences = adjust_twitter_tokenization(sentences)
         labels = data_df[self.emotions].values
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
@@ -303,6 +314,7 @@ class OffensevalTask(Task):
             data_df.subtask_a.replace(to_replace='NOT', value=0, inplace=True)
             labels = data_df.subtask_a.values
 
+        sentences = adjust_twitter_tokenization(sentences)
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(labels)
 
@@ -347,6 +359,7 @@ class SarcasmDetection(Task):
         df['sentence'] = df['response'] + df['contextstr']
 
         sentences = df.sentence.values
+        sentences = adjust_twitter_tokenization(sentences)
         labels = np.where(df.label.values == 'SARCASM', 1, 0)
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
@@ -394,6 +407,7 @@ class SentimentAnalysis(Task):
         df = self._get_dataframe(split)
 
         sentences = df.sentence.values
+        sentences = adjust_twitter_tokenization(sentences)
         labels = np.where(df.label.values == 'positive', 1, 0)
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
@@ -437,6 +451,7 @@ class IronySubtaskA(Task):
         df = self._get_dataframe(split)
 
         sentences = df.Tweet_text.values
+        sentences = adjust_twitter_tokenization(sentences)
         labels = np.where(df.Label.values == 1, 1, 0)
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
@@ -480,6 +495,7 @@ class IronySubtaskB(Task):
         df = self._get_dataframe(split)
 
         sentences = df.Tweet_text.values
+        sentences = adjust_twitter_tokenization(sentences)
         labels = df.Label.values
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
@@ -522,6 +538,7 @@ class Abuse(Task):
         df = self._get_dataframe(split)
 
         sentences = df.Tweet_text.values
+        sentences = adjust_twitter_tokenization(sentences)
         labels = df.Label.values
 
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
@@ -573,7 +590,8 @@ class Politeness(Task):
             df = self.df_dev
         else:
             df = self.df_test
-        input_ids, attention_masks = self.fn_tokenizer(df.text, tokenizer, max_length=max_length)
+        sentences = adjust_twitter_tokenization(df.text)
+        input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(df.label.values)
         return make_dataloader(self.NAME, input_ids, labels, attention_masks, batch_size, shuffle, supp_query_split=supp_query_split)
 
