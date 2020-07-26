@@ -49,7 +49,6 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
     elif isinstance(model, ProtoMAMLLearner):
         optimizer = optim.SGD(params=chain(model.proto_net.encoder.mlp.parameters(),
                                            model.output_layer.parameters()), lr=lr)
-        optimizer_bert = optim.SGD(model.proto_net.encoder.bert.parameters(), lr=bert_lr)
         optimizer_list_bert = []
         for bl in range(1, args.unfreeze_num + 1):
             optimizer_list_bert.append(
