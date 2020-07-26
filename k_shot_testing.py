@@ -32,20 +32,34 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
     if num_test_batches is None or num_test_batches > test_size:
         num_test_batches = test_size
 
-    # Define optimizers and loss function
+    # prepare list of bert learning rates for each layer (last entry in args.bert_lr is used for all remaining ones)
+    bert_lr = [args.bert_lr[-1]] * 12
+    for lr in range(len(args.bert_lr)):
+        bert_lr[lr] = args.bert_lr[lr]
+    # De fine optimizers and loss function
     if isinstance(model, MultiTaskLearner):
         task_module_name = 'task_{}'.format(test_task.get_name())
         out_MTL_layer = model._modules[task_module_name]
         optimizer = optim.SGD(params=chain(model.encoder.mlp.parameters(),
                                            out_MTL_layer.parameters()), lr=lr)
-        optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=bert_lr)
+        optimizer_list_bert = []
+        for bl in range(1, args.unfreeze_num + 1):
+            optimizer_list_bert.append(
+                optim.SGD(params=model.encoder.bert.encoder.layer[-bl].parameters(), lr=bert_lr[bl - 1]))
     elif isinstance(model, ProtoMAMLLearner):
         optimizer = optim.SGD(params=chain(model.proto_net.encoder.mlp.parameters(),
                                            model.output_layer.parameters()), lr=lr)
         optimizer_bert = optim.SGD(model.proto_net.encoder.bert.parameters(), lr=bert_lr)
+        optimizer_list_bert = []
+        for bl in range(1, args.unfreeze_num + 1):
+            optimizer_list_bert.append(
+                optim.SGD(params=model.proto_net.encoder.bert.encoder.layer[-bl].parameters(), lr=bert_lr[bl - 1]))
     else:
         optimizer = optim.SGD(params=model.encoder.mlp.parameters(), lr=lr)
-        optimizer_bert = optim.SGD(model.encoder.bert.parameters(), lr=bert_lr)
+        optimizer_list_bert = []
+        for bl in range(1, args.unfreeze_num + 1):
+            optimizer_list_bert.append(
+                optim.SGD(params=model.encoder.bert.encoder.layer[-bl].parameters(), lr=bert_lr[bl - 1]))
 
     cross_entropy = nn.CrossEntropyLoss()
 
@@ -79,7 +93,8 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
 
         # fine-tune model with some updates on the provided episode
         for update in range(num_updates):
-            optimizer_bert.zero_grad()
+            for task_bert_layer_optim in optimizer_list_bert:
+                task_bert_layer_optim.zero_grad()
             optimizer.zero_grad()
 
             # get predictions depending on model type
@@ -98,7 +113,8 @@ def k_shot_testing(model, episodes, test_task, device, num_updates=5, num_test_b
 
             loss.backward()
             optimizer.step()
-            optimizer_bert.step()
+            for bert_layer_optim in optimizer_list_bert:
+                bert_layer_optim.step()
 
 
         # evaluate accuracy on whole test set
