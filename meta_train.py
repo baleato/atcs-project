@@ -164,13 +164,13 @@ def meta_train(tasks, model, args, device, method='random', meta_iters=10000, nu
             if task_sample == 0:
                 for param in task_model.parameters():
                     if param.requires_grad and param.grad is not None:
-                        grads.append(param.grad.clone())
+                        grads.append(param.grad.clone() / meta_batch_size)
             # add the gradients of all task samples
             else:
                 p = 0
                 for param in task_model.parameters():
                     if param.requires_grad and param.grad is not None:
-                        grads[p] += param.grad.clone()
+                        grads[p] += param.grad.clone() / meta_batch_size
                         p += 1
 
         # perform meta update
