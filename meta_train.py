@@ -229,7 +229,8 @@ def meta_train(tasks, model, args, device, method='random', meta_iters=10000, nu
         if iterations % args.eval_every == 0:
             task_model.proto_net.load_state_dict(model.proto_net.state_dict())
             task_model.initialize_classifier(nn.Parameter(dummy_w), nn.Parameter(dummy_b), hard_replace=True)
-            test_mean, test_std = k_shot_testing(task_model, episodes, val_task, device, num_test_batches=args.num_test_batches)
+            test_mean, test_std = k_shot_testing(task_model, episodes, val_task, device, num_updates=args.inner_updates,
+                                                 num_test_batches=args.num_test_batches)
             writer.add_scalar('{}/Acc'.format(val_task.get_name()), test_mean, iterations)
             writer.add_scalar('{}/STD'.format(val_task.get_name()), test_std, iterations)
             print(test_template.format(test_mean, test_std), flush=True)
