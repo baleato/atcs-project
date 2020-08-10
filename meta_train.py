@@ -72,6 +72,10 @@ def meta_train(tasks, model, args, device, method='random', custom_task_ratio=No
 
     print('Loading Tokenizer..')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+    num_added_tokens = tokenizer.add_special_tokens({'mnt_token': "[MNT]", 'url_token': "[URL]"})
+    print('We have added', num_added_tokens, 'tokens')
+    model.resize_token_embeddings(len(tokenizer))
+
     print('done.')
 
     # setup task sampler and task model
@@ -271,7 +275,10 @@ if __name__ == '__main__':
     for key, value in vars(args).items():
         print(key + ' : ' + str(value))
     device = get_pytorch_device(args)
-
+    # set seed
+    torch.manual_seed(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     if args.resume_snapshot:
         print("Loading models from snapshot")
         # TODO find way to pass right number of hidden layers when loading from snapshot
