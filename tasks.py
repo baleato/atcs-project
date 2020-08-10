@@ -18,7 +18,8 @@ def adjust_twitter_tokenization(sentences):
     for i, sentence in enumerate(sentences):
         # replace a user mention with the mention token and delete all hashtags
         sentence = re_mnt.sub('[MNT]', sentence)
-        sentence = re_hashtag.sub('', sentence)
+        # uncomment the next line if hashtags should be removed
+        #sentence = re_hashtag.sub('', sentence)
         sentences[i] = re_url.sub('[URL]', sentence)
     return sentences
 
