@@ -94,6 +94,8 @@ def meta_train(tasks, model, args, device, method='random', meta_iters=10000, nu
     average_query_loss = 0
     best_query_loss = 1e+9
     best_test_mean = -1
+    best_test_last = -1
+    convergence_tolerance_cnt = 0
     # outer loop (meta-iterations)
     for i in range(meta_iters):
         grads = []
@@ -246,6 +248,15 @@ def meta_train(tasks, model, args, device, method='random', meta_iters=10000, nu
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
                         os.remove(f)
+            
+            if test_mean > best_test_last:
+                best_test_last = best_test_mean
+                convergence_tolerance_cnt = 0
+            else:
+                convergence_tolerance_cnt += 1
+
+            if convergence_tolerance_cnt == args.convergence_tolerance:
+                break
 
 
         # saving redundant parameters
