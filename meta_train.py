@@ -72,6 +72,12 @@ def meta_train(tasks, model, args, device, method='random', meta_iters=10000, nu
 
     print('Loading Tokenizer..')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+    special_tokens_dict = {'additional_special_tokens': ["[MNT]", "[URL]"]}
+
+    num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
+    print('We have added', num_added_toks, 'tokens')
+    model.proto_net.encoder.bert.resize_token_embeddings(len(tokenizer))
+    # Notice: resize_token_embeddings expect to receive the full size of the new vocabulary, i.e. the length of the tokenizer.
     print('done.')
 
     # setup task sampler and task model

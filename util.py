@@ -209,22 +209,23 @@ def parse_nonlinearity(nonlinearity_str):
 # FIXME: tasks are imported at this point to avoid a circular dependency:
 # tasks [*] -> models [SLClassifier] -> util [parse_nonlinearity]
 from tasks import *
+import tasks
 
 def get_task_by_name(args, task_name):
     if 'Offenseval' == task_name:
-        return OffensevalTask(cls_dim=args.mlp_dims[-1])
+        return tasks.OffensevalTask(cls_dim=args.mlp_dims[-1])
     elif 'SarcasmDetection' == task_name:
-        return SarcasmDetection(cls_dim=args.mlp_dims[-1])
+        return tasks.SarcasmDetection(cls_dim=args.mlp_dims[-1])
     elif 'SentimentAnalysis' == task_name:
-        return SentimentAnalysis(cls_dim=args.mlp_dims[-1])
+        return tasks.SentimentAnalysis(cls_dim=args.mlp_dims[-1])
     elif 'IronySubtaskA' == task_name:
-        return IronySubtaskA(cls_dim=args.mlp_dims[-1])
+        return tasks.IronySubtaskA(cls_dim=args.mlp_dims[-1])
     elif 'IronySubtaskB' == task_name:
-        return IronySubtaskB(cls_dim=args.mlp_dims[-1])
+        return tasks.IronySubtaskB(cls_dim=args.mlp_dims[-1])
     elif 'Abuse' == task_name:
-        return Abuse(cls_dim=args.mlp_dims[-1])
+        return tasks.Abuse(cls_dim=args.mlp_dims[-1])
     elif 'Politeness' == task_name:
-        return Politeness(cls_dim=args.mlp_dims[-1])
+        return tasks.Politeness(cls_dim=args.mlp_dims[-1])
     else:
         raise ValueError('Unknown task: {}'.format(task_name))
 
