@@ -78,11 +78,11 @@ def meta_train(tasks, model, args, device, method='random', meta_iters=10000, nu
     print('We have added', num_added_toks, 'tokens')
     model.proto_net.encoder.bert.resize_token_embeddings(len(tokenizer))
     # Notice: resize_token_embeddings expect to receive the full size of the new vocabulary, i.e. the length of the tokenizer.
-    print('done.')
 
     # setup task sampler and task model
     sampler = TaskSampler(tasks, method=method, custom_task_ratio=args.custom_task_ratio, supp_query_split=True)
     task_model = type(model)(args)
+    task_model.proto_net.encoder.bert.resize_token_embeddings(len(tokenizer))
 
     iterations = 0
     # Iterate over the data
@@ -277,6 +277,10 @@ if __name__ == '__main__':
     for key, value in vars(args).items():
         print(key + ' : ' + str(value))
     device = get_pytorch_device(args)
+    # set seed
+    torch.manual_seed(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     if args.resume_snapshot:
         print("Loading models from snapshot")

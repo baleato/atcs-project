@@ -294,6 +294,7 @@ def get_args_meta(args=None):
     parser.add_argument('--training_tasks', nargs='*', choices=TASK_NAMES,
         default=['SemEval18', 'Offenseval', 'SarcasmDetection'])
     parser.add_argument('--validation_task', default='SentimentAnalysis', choices=TASK_NAMES)
+    parser.add_argument('--seed', type=int, default=111)
     return parser.parse_args(args=args)
 
 def get_test_args():
@@ -320,5 +321,6 @@ def get_test_args():
     parser.add_argument('--init_linear_with_centroids', default=False, action='store_true')
     parser.add_argument('--bert_lr', type=float, default=5e-5)
     parser.add_argument('--distance', choices=['euclidean', 'cosine'], default='euclidean')
+    parser.add_argument('--seed', type=int, default=111)
     args = parser.parse_args()
     return args
