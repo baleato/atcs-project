@@ -1,23 +1,10 @@
-import os
 import time
-import glob
-from datetime import timedelta
+from transformers import BertTokenizer
 
-import torch.nn as nn
-import torch
-from transformers import BertTokenizer, AdamW, get_cosine_schedule_with_warmup
-
-from util import get_args_meta, get_pytorch_device, load_model, get_training_tasks, get_validation_task
+import util
 from tasks import *
 from argparse import ArgumentParser
 from collections import defaultdict
-from torch.utils.tensorboard import SummaryWriter
-from models import ProtoMAMLLearner
-from k_shot_testing import k_shot_testing
-from itertools import chain
-
-from datetime import datetime
-import torch.optim as optim
 
 
 TASK_NAMES = [
@@ -50,7 +37,7 @@ if __name__ == '__main__':
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
     # setup task sampler and generate iterator
-    tasks = get_training_tasks(args)
+    tasks = util.get_training_tasks(args)
     sampler = TaskSampler(tasks, method='random', custom_task_ratio=None, supp_query_split=True)
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
 
