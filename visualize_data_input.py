@@ -27,6 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--token_id', type=bool, default=False)
     parser.add_argument('--mask', type=bool, default=False)
     parser.add_argument('--label', type=bool, default=True)
+    parser.add_argument('--mlp_dims', nargs='*', default=[768])
     args = parser.parse_args()
 
     # print config
