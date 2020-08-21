@@ -1,7 +1,7 @@
 import time
 from transformers import BertTokenizer
 
-import util
+from util import get_training_tasks
 from tasks import *
 from argparse import ArgumentParser
 from collections import defaultdict
@@ -37,7 +37,7 @@ if __name__ == '__main__':
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
     # setup task sampler and generate iterator
-    tasks = util.get_training_tasks(args)
+    tasks = get_training_tasks(args)
     sampler = TaskSampler(tasks, method='random', custom_task_ratio=None, supp_query_split=True)
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
 
