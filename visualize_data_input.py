@@ -20,7 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--training_tasks', nargs='*', choices=TASK_NAMES,
                         default=['SemEval18', 'Offenseval', 'SarcasmDetection'])
     parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--num_batches', type=int, default=1)
+    parser.add_argument('--num_batches', type=int, default=3000)
     parser.add_argument('--detail', nargs=2, type=int, default=[0, 4])
     parser.add_argument('--task', type=bool, default=True)
     parser.add_argument('--text', type=bool, default=True)
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     sampler = TaskSampler(tasks, method='random', custom_task_ratio=None, supp_query_split=True)
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
     end = time.time()
-    print("Preparation Time for Task Sampler: {} seconds".format(emd-start))
+    print("Preparation Time for Task Sampler: {} seconds".format(end-start))
 
     # initiallize statistics containers
     task_ratio = defaultdict(int)
@@ -127,7 +127,7 @@ if __name__ == '__main__':
                     print("Label: {}".format(query[1][q]))
 
         # print data statistics
-        print("Average sampling time per batch: {}".format(statistics.mean(sampling_time)))
+        print("Average sampling time per batch: {} seconds".format(statistics.mean(sampling_time)))
 
         task_ratio_results = ""
         for t in args.training_tasks:
