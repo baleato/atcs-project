@@ -162,7 +162,7 @@ class TaskSampler(Task):
         self.supp_query_split = supp_query_split
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
-        task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state,
+        task_iters = [task.get_iter(split, tokenizer, batch_size*task.num_classes, shuffle, random_state,
                                     supp_query_split=self.supp_query_split) for task in self.tasks]
         self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
 
