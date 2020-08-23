@@ -60,16 +60,16 @@ if __name__ == '__main__':
 
         # record task ratio
         task_ratio[current_task] += 1
-        for sup in support:
-            sup_label_ratio[sup[2]] += 1
-            sup_text = sup[0]
+        for s in range(support[0].shape[0]):
+            sup_label_ratio[support[2][s]] += 1
+            sup_text = support[0][s]
             quater_sentence_word[sup_text[len(sup_text)//4]] += 1
-            mask_average += sum(sup[1]) / len(sup[1])
-        for quer in query:
-            quer_label_ratio[sup[2]] += 1
-            quer_text = quer[0]
+            mask_average += sum(support[1][s]) / len(sup[1][s])
+        for q in range(query[0].shape[0]):
+            quer_label_ratio[query[2][q]] += 1
+            quer_text = query[0][q]
             quater_sentence_word[quer_text[len(quer_text)//4]] += 1
-            mask_average += sum(quer[1]) / len(quer[1])
+            mask_average += sum(query[1][q]) / len(query[1][q])
 
         # print details (explicit data) for specified batches
         if args.detail[0] <= i <= args.detail[1]:
@@ -77,32 +77,32 @@ if __name__ == '__main__':
                 print("Task: {}".format(current_task))
 
             print("Support: ")
-            for sup in support:
+            for s in range(support[0].shape[0]):
                 if args.text:
                     print("Text:")
-                    tokenizer.decode(sup[0], clean_up_tokenization_spaces=args.pretty)
+                    print(tokenizer.decode(support[0][s], clean_up_tokenization_spaces=args.pretty))
                 if args.token_id:
                     print("Token ID: ")
-                    print(sup[0])
+                    print(support[0][s])
                 if args.mask:
                     print("Mask: ")
-                    print(sup[1])
+                    print(support[1][s])
                 if args.label:
-                    print("Label: {}".format(sup[2]))
+                    print("Label: {}".format(support[2][s]))
 
             print("Query: ")
-            for quer in query:
+            for q in range(query[0].shape[0]):
                 if args.text:
                     print("Text:")
-                    tokenizer.decode(quer[0], clean_up_tokenization_spaces=args.pretty)
+                    print(tokenizer.decode(query[0][q], clean_up_tokenization_spaces=args.pretty))
                 if args.token_id:
                     print("Token ID: ")
-                    print(quer[0])
+                    print(query[0][q])
                 if args.mask:
                     print("Mask: ")
-                    print(quer[1])
+                    print(query[1][q])
                 if args.label:
-                    print("Label: {}".format(quer[2]))
+                    print("Label: {}".format(query[2][q]))
 
         # print data statistics
         task_ratio_results = ""
