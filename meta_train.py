@@ -81,7 +81,7 @@ def meta_train(tasks, model, args, device, method='random', meta_iters=10000, nu
     # Notice: resize_token_embeddings expect to receive the full size of the new vocabulary, i.e. the length of the tokenizer.
 
     # setup task sampler and task model
-    sampler = TaskSampler(tasks, method=method, custom_task_ratio=args.custom_task_ratio, supp_query_split=True)
+    sampler = TaskSampler(tasks, method=method, custom_task_ratio=args.custom_task_ratio, supp_query_split=True, avoid_repetition=args.avoid_repetition)
     task_model = type(model)(args)
     task_model.proto_net.encoder.bert.resize_token_embeddings(len(tokenizer))
 

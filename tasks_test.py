@@ -72,6 +72,26 @@ class TestSamplers(unittest.TestCase):
             batches.append(next(sampler_iter))
         self.assertEqual(batches, [0, 1, 2, 3, 0, 1, 2, 3])
 
+    def test_task_sampler_custom_ratio(self):
+        taskA = DummyTask([0, 2, 4, 6])
+        taskB = DummyTask([1, 3])
+        sampler = tasks.TaskSampler([taskA, taskB], custom_task_ratio=[0.5, 0.5])
+        sampler_iter = sampler.get_iter(split=None, tokenizer=None)
+        batches = []
+        for i in range(len(sampler_iter) * 2):
+            batches.append(next(sampler_iter))
+        self.assertEqual(batches, [0, 1, 2, 3, 4, 1, 6, 3, 0, 1, 2, 3])
+
+    def test_task_sampler_episodic_fashion_avoiding_repetition(self):
+        taskA = DummyTask([0, 2, 4, 6])
+        taskB = DummyTask([1, 3])
+        sampler = tasks.TaskSampler([taskA, taskB], custom_task_ratio=[0.5, 0.5], avoid_repetition=True)
+        sampler_iter = sampler.get_iter(split=None, tokenizer=None)
+        batches = []
+        for i in range(len(sampler_iter) * 2):
+            batches.append(next(sampler_iter))
+        self.assertEqual(batches, [0, 1, 2, 3, 0, 1, 2, 3])
+
 
 if __name__ == '__main__':
     unittest.main()

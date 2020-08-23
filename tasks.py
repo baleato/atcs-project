@@ -83,7 +83,7 @@ class Task(object):
 
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
-    def __init__(self, task_iters, method, custom_task_ratio=None):
+    def __init__(self, task_iters, method, custom_task_ratio=None, avoid_repetition=False):
         self.original_dataloaders = task_iters
         self.task_iters = [iter(ti) for ti in task_iters]
         self.method = method
@@ -102,9 +102,16 @@ class TaskSamplerIter(object):
                 task_ratio = custom_task_ratio
 
         self.task_probs = [tr/sum(task_ratio) for tr in task_ratio]
-        self.num_total_batches = sum([len(task_iter) for task_iter in task_iters])
+        if avoid_repetition:
+            self.cap_episodes = min([len(task_iter) for task_iter in task_iters])
+            self.num_total_batches = len(self.task_iters) * self.cap_episodes
+            print('[!] Episode batches capped to {} to match smallest task'.format(self.cap_episodes))
+        else:
+            self.cap_episodes = None
+            self.num_total_batches = sum([len(task_iter) for task_iter in task_iters])
         self.task_index = 0
         self.batch_idx = 0
+        self.task_index_count = dict()
 
     def get_task_index(self):
         return self.task_index
@@ -118,10 +125,20 @@ class TaskSamplerIter(object):
     def __iter__(self):
         return self
 
+    def _reset_task_iter(self, task_index):
+        new_task_iter = iter(self.original_dataloaders[task_index])
+        self.task_iters[task_index] = new_task_iter
+        self.task_index_count[task_index] = 0
+        return new_task_iter
+
     def __next__(self):
         if self.task_iters:
             task_index = self.sample_next_task()
             task_iter = self.task_iters[task_index]
+            task_index_count = self.task_index_count.get(task_index, 0)
+            if isinstance(self.cap_episodes, int) and task_index_count >= self.cap_episodes:
+                task_iter = self._reset_task_iter(task_index)
+                task_index_count = 0
 
             try:
                 batch = next(task_iter)
@@ -130,13 +147,17 @@ class TaskSamplerIter(object):
                 # return an empty list instead of raising StopIteration
 
                 # if iterator is empty initialize new iterator from original dataloader
-                task_iter = iter(self.original_dataloaders[task_index])
-                self.task_iters[task_index] = task_iter
+                task_iter = self._reset_task_iter(task_index)
                 batch = next(task_iter)
+                if isinstance(self.cap_episodes, int):
+                    task_index_count = 0
 
             self.task_index = task_index
             self.batch_idx += 1
+            self.task_index_count[task_index] = task_index_count + 1
             if self.batch_idx == self.num_total_batches+1:
+                # FIXME: this warning seems meaningless since we are indeed iterating over the
+                # tasks many times purposefuly.
                 logging.warning(
                     (
                         'Number of batches exceeds the expected amount. ' +
@@ -165,17 +186,18 @@ class TaskSampler(Task):
     #   - [X] Allow to specify sampling factors per task. For instance: [1, 2, 0.5, 0.5]
     #     will sample task 1 (25%), task 2 (50%) and task 3 and 4 (12.5%) each.
     #   - [X] Mind imbalance data (-> sample freq. sqrt of dataset length)
-    def __init__(self, tasks, method='sequential', custom_task_ratio=None, supp_query_split=False):
+    def __init__(self, tasks, method='sequential', custom_task_ratio=None, supp_query_split=False, avoid_repetition=False):
         assert len(tasks) > 0
         self.tasks = tasks
         self.method = method
         self.custom_task_ratio = custom_task_ratio
         self.supp_query_split = supp_query_split
+        self.avoid_repetition = avoid_repetition
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         task_iters = [task.get_iter(split, tokenizer, batch_size, shuffle, random_state,
                                     supp_query_split=self.supp_query_split) for task in self.tasks]
-        self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
+        self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio, avoid_repetition=self.avoid_repetition)
 
         return self._task_sampler_iter
 

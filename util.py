@@ -295,6 +295,7 @@ def get_args_meta(args=None):
         default=['SemEval18', 'Offenseval', 'SarcasmDetection'])
     parser.add_argument('--validation_task', default='SentimentAnalysis', choices=TASK_NAMES)
     parser.add_argument('--seed', type=int, default=111)
+    parser.add_argument('--avoid_repetition', default=False, action='store_true')
     return parser.parse_args(args=args)
 
 def get_test_args():
