@@ -40,8 +40,11 @@ if __name__ == '__main__':
 
     # setup task sampler and generate iterator
     tasks = get_training_tasks(args)
+    start = time.time()
     sampler = TaskSampler(tasks, method='random', custom_task_ratio=None, supp_query_split=True)
     train_iter = sampler.get_iter('train', tokenizer, batch_size=args.batch_size, shuffle=True)
+    end = time.time()
+    print("Preparation Time for Task Sampler: {} seconds".format(emd-start))
 
     # initiallize statistics containers
     task_ratio = defaultdict(int)
@@ -52,13 +55,17 @@ if __name__ == '__main__':
     avg_quer_set_examples = []
     mask_average = []
     mask_batch_std = []
+    sampling_time = []
 
     # generate some batches
     for i in range(args.num_batches):
         # prepare support and query set
+        start = time.time()
         batch = next(train_iter)
         support = batch[:3]
         query = batch[3:]
+        end = time.time()
+        sampling_time.append(end-start)
 
         current_task = sampler.get_name()
 
@@ -120,6 +127,8 @@ if __name__ == '__main__':
                     print("Label: {}".format(query[1][q]))
 
         # print data statistics
+        print("Average sampling time per batch: {}".format(statistics.mean(sampling_time)))
+
         task_ratio_results = ""
         for t in args.training_tasks:
             task_ratio_results += "{}: {} ".format(t, task_ratio[t]/args.num_batches)
