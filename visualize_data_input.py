@@ -67,7 +67,7 @@ if __name__ == '__main__':
             mask_average += sum(sup[1]) / len(sup[1])
         for quer in query:
             quer_label_ratio[sup[2]] += 1
-            quer_text = sup[0]
+            quer_text = quer[0]
             quater_sentence_word[quer_text[len(quer_text)//4]] += 1
             mask_average += sum(quer[1]) / len(quer[1])
 
