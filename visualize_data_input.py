@@ -1,4 +1,5 @@
 import time
+import statistics
 from transformers import BertTokenizer
 
 from util import get_training_tasks
@@ -19,7 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--training_tasks', nargs='*', choices=TASK_NAMES,
                         default=['SemEval18', 'Offenseval', 'SarcasmDetection'])
     parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--num_batches', type=int, default=1000)
+    parser.add_argument('--num_batches', type=int, default=1)
     parser.add_argument('--detail', nargs=2, type=int, default=[0, 4])
     parser.add_argument('--task', type=bool, default=True)
     parser.add_argument('--text', type=bool, default=True)
@@ -47,7 +48,10 @@ if __name__ == '__main__':
     sup_label_ratio = defaultdict(int)
     quer_label_ratio = defaultdict(int)
     quater_sentence_word = defaultdict(int)
-    mask_average = 0
+    avg_sup_set_examples = []
+    avg_quer_set_examples = []
+    mask_average = []
+    mask_batch_std = []
 
     # generate some batches
     for i in range(args.num_batches):
@@ -60,16 +64,27 @@ if __name__ == '__main__':
 
         # record task ratio
         task_ratio[current_task] += 1
-        for s in range(support[0].shape[0]):
-            sup_label_ratio[support[2][s]] += 1
+        num_sup_examples = support[0].shape[0]
+        avg_sup_set_examples.append(num_sup_examples)
+        mask_average_batch = []
+        for s in range(num_sup_examples):
+            sup_label_ratio[support[1][s].item()] += 1
             sup_text = support[0][s]
-            quater_sentence_word[sup_text[len(sup_text)//4]] += 1
-            mask_average += sum(support[1][s]) / len(sup[1][s])
-        for q in range(query[0].shape[0]):
-            quer_label_ratio[query[2][q]] += 1
+            quater_sentence_word[sup_text[len(sup_text)//4].item()] += 1
+            mask_average_batch.append(sum(support[2][s]).item())
+        num_quer_examples = query[0].shape[0]
+        avg_quer_set_examples.append(num_quer_examples)
+        for q in range(num_quer_examples):
+            quer_label_ratio[query[1][q].item()] += 1
             quer_text = query[0][q]
-            quater_sentence_word[quer_text[len(quer_text)//4]] += 1
-            mask_average += sum(query[1][q]) / len(query[1][q])
+            quater_sentence_word[quer_text[len(quer_text)//4].item()] += 1
+            mask_average_batch.append(sum(query[2][q]).item())
+
+        mask_average.append(statistics.mean(mask_average_batch))
+        if len(mask_average_batch) > 1:
+            mask_batch_std.append(statistics.stdev(mask_average_batch))
+        else:
+            mask_batch_std = mask_average_batch
 
         # print details (explicit data) for specified batches
         if args.detail[0] <= i <= args.detail[1]:
@@ -86,9 +101,9 @@ if __name__ == '__main__':
                     print(support[0][s])
                 if args.mask:
                     print("Mask: ")
-                    print(support[1][s])
+                    print(support[2][s])
                 if args.label:
-                    print("Label: {}".format(support[2][s]))
+                    print("Label: {}".format(support[1][s]))
 
             print("Query: ")
             for q in range(query[0].shape[0]):
@@ -100,31 +115,39 @@ if __name__ == '__main__':
                     print(query[0][q])
                 if args.mask:
                     print("Mask: ")
-                    print(query[1][q])
+                    print(query[2][q])
                 if args.label:
-                    print("Label: {}".format(query[2][q]))
+                    print("Label: {}".format(query[1][q]))
 
         # print data statistics
         task_ratio_results = ""
         for t in args.training_tasks:
             task_ratio_results += "{}: {} ".format(t, task_ratio[t]/args.num_batches)
         print("\nTask distribution:\n{}".format(task_ratio_results))
-        print("Support Label Ratio: ")
 
+        print("Support Label Ratio: ")
         sup_label_ratio_results = ""
         for s in sup_label_ratio.keys():
             sup_label_ratio_results += \
                 "Label {}: {} ".format(s, sup_label_ratio[s] / (args.num_batches * args.batch_size))
         print(sup_label_ratio_results)
 
+        print("Query Label Ratio: ")
         quer_label_ratio_results = ""
         for q in quer_label_ratio.keys():
             quer_label_ratio_results += \
                 "Label {}: {} ".format(q, quer_label_ratio[q] / (args.num_batches * args.batch_size))
         print(quer_label_ratio_results)
 
-        print("Average Sentence Length (based on unmasked tokens): {}".format(
-            mask_average / (args.num_batches * args.batch_size)))
+        avg_mask_len = "Average Sentence Length (based on unmasked tokens): Mean: {}, intra-batch std.: {}".format(
+            statistics.mean(mask_average), statistics.mean(mask_batch_std))
+        if len(mask_average) > 1:
+            avg_mask_len += ", inter-batch std.: {}".format(statistics.stdev(mask_average))
+        print(avg_mask_len)
+
+        print("Average Examples per batch: Support: {}, Query: {}".format(
+            sum(avg_sup_set_examples) / len(avg_sup_set_examples),
+            sum(avg_quer_set_examples) / len(avg_quer_set_examples)))
 
         quater_sentence_word_results = ""
         for w in quater_sentence_word.keys():
