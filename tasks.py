@@ -95,7 +95,12 @@ class TaskSamplerIter(object):
             dataset_ids = [task_iter.dataset.id for task_iter in task_iters]
             task_ratio = [math.sqrt(task_iter.dataset.tensors[0].shape[0])/dataset_ids.count(task_iter.dataset.id) for task_iter in task_iters]
         else:
-            task_ratio = custom_task_ratio
+            if custom_task_ratio == 'equal':
+                task_num = len(self.original_dataloaders)
+                task_ratio = [1 / task_num] * task_num
+            else:
+                task_ratio = custom_task_ratio
+
         self.task_probs = [tr/sum(task_ratio) for tr in task_ratio]
         self.num_total_batches = sum([len(task_iter) for task_iter in task_iters])
         self.task_index = 0
