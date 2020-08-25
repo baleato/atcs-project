@@ -72,10 +72,11 @@ class Task(object):
 
 class TaskSamplerIter(object):
     """Iterator class used by TaskSampler."""
-    def __init__(self, task_iters, method, custom_task_ratio=None):
+    def __init__(self, task_iters, method, custom_task_ratio=None, vary_k=False):
         self.original_dataloaders = task_iters
         self.task_iters = [iter(ti) for ti in task_iters]
         self.method = method
+        self.vary_k = vary_k
         if custom_task_ratio is None:
             # Using the square root of the dataset size is a strategy that yields good results.
             # Additionally, we divide by the number of times the same dataset is used in
@@ -118,10 +119,17 @@ class TaskSamplerIter(object):
                 # return an empty list instead of raising StopIteration
 
                 # if iterator is empty initialize new iterator from original dataloader
-                task_iter = iter(self.original_dataloaders[task_index])
+                task_loader = self.original_dataloaders[task_index]
+                task_iter = iter(task_loader)
                 self.task_iters[task_index] = task_iter
                 batch = next(task_iter)
 
+                if self.vary_k:
+                    current_k = torch.randint(task_loader.dataset.num_classes, task_loader.batch_size, [1]).item()
+                    new_batch_fields = []
+                    for field in batch:
+                        new_batch_fields.append(field[:current_k])
+                    batch = tuple(new_batch_fields)
             self.task_index = task_index
             self.batch_idx += 1
             if self.batch_idx == self.num_total_batches+1:
@@ -154,17 +162,18 @@ class TaskSampler(Task):
     #   - [X] Allow to specify sampling factors per task. For instance: [1, 2, 0.5, 0.5]
     #     will sample task 1 (25%), task 2 (50%) and task 3 and 4 (12.5%) each.
     #   - [X] Mind imbalance data (-> sample freq. sqrt of dataset length)
-    def __init__(self, tasks, method='sequential', custom_task_ratio=None, supp_query_split=False):
+    def __init__(self, tasks, method='sequential', custom_task_ratio=None, supp_query_split=False, vary_k=False):
         assert len(tasks) > 0
         self.tasks = tasks
         self.method = method
         self.custom_task_ratio = custom_task_ratio
         self.supp_query_split = supp_query_split
+        self.vary_k = vary_k
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64):
         task_iters = [task.get_iter(split, tokenizer, batch_size*task.num_classes, shuffle, random_state,
                                     supp_query_split=self.supp_query_split) for task in self.tasks]
-        self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio)
+        self._task_sampler_iter = TaskSamplerIter(task_iters, self.method, self.custom_task_ratio, self.vary_k)
 
         return self._task_sampler_iter
 

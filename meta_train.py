@@ -75,7 +75,8 @@ def meta_train(tasks, model, args, device, method='random', meta_iters=10000, nu
     print('done.')
 
     # setup task sampler and task model
-    sampler = TaskSampler(tasks, method=method, custom_task_ratio=args.custom_task_ratio, supp_query_split=True)
+    sampler = TaskSampler(tasks, method=method, custom_task_ratio=args.custom_task_ratio, supp_query_split=True,
+                          vary_k=args.vary_k)
     task_model = type(model)(args)
 
     iterations = 0

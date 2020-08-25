@@ -132,6 +132,8 @@ def make_dataloader(dataset_id, input_ids, labels, attention_masks, batch_size=1
     # We identify the dataset so its users can distinguish between data distributions.
     # For instance, to diminish frequency sampling between tasks that reuse the same dataset.
     dataset.id = dataset_id
+    # also record number of classes
+    dataset.num_classes = len(labels.unique())
 
     # Determine what sampling mode should be used
     if shuffle:
@@ -272,6 +274,7 @@ def get_args_meta(args=None):
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--save_path', type=str, default='results')
     parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--vary_k', type=bool, default=False)
     parser.add_argument('--unfreeze_num', type=int, default=2)
     parser.add_argument('--mlp_dims', nargs='+', type=int, default=[768])
     parser.add_argument('--mlp_dropout', type=float, default=0)
