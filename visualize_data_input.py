@@ -96,71 +96,79 @@ if __name__ == '__main__':
         # print details (explicit data) for specified batches
         if args.detail[0] <= i <= args.detail[1]:
             if args.task:
-                print("Task: {}".format(current_task))
+                print("Task: {}\n".format(current_task))
 
-            print("Support: ")
+            print("Support: \n")
             for s in range(support[0].shape[0]):
                 if args.text:
                     print("Text:")
                     print(tokenizer.decode(support[0][s], clean_up_tokenization_spaces=args.pretty))
+                    print()
                 if args.token_id:
                     print("Token ID: ")
                     print(support[0][s])
+                    print()
                 if args.mask:
                     print("Mask: ")
                     print(support[2][s])
+                    print()
                 if args.label:
                     print("Label: {}".format(support[1][s]))
+                print()
 
-            print("Query: ")
+            print("Query: \n")
             for q in range(query[0].shape[0]):
                 if args.text:
                     print("Text:")
                     print(tokenizer.decode(query[0][q], clean_up_tokenization_spaces=args.pretty))
+                    print()
                 if args.token_id:
                     print("Token ID: ")
                     print(query[0][q])
+                    print()
                 if args.mask:
                     print("Mask: ")
                     print(query[2][q])
+                    print()
                 if args.label:
                     print("Label: {}".format(query[1][q]))
+                print()
 
-        # print data statistics
-        print("Average sampling time per batch: {} seconds".format(statistics.mean(sampling_time)))
+    # print data statistics
+    print("Average sampling time per batch: {} seconds".format(statistics.mean(sampling_time)))
 
-        task_ratio_results = ""
-        for t in args.training_tasks:
-            task_ratio_results += "{}: {} ".format(t, task_ratio[t]/args.num_batches)
-        print("\nTask distribution:\n{}".format(task_ratio_results))
+    task_ratio_results = ""
+    for t in args.training_tasks:
+        task_ratio_results += "{}: {} ".format(t, task_ratio[t]/args.num_batches)
+    print("\nTask distribution:\n{}".format(task_ratio_results))
 
-        print("Support Label Ratio: ")
-        sup_label_ratio_results = ""
-        for s in sup_label_ratio.keys():
-            sup_label_ratio_results += \
-                "Label {}: {} ".format(s, sup_label_ratio[s] / (args.num_batches * args.batch_size))
-        print(sup_label_ratio_results)
+    print("Support Label Ratio: ")
+    sup_label_ratio_results = ""
+    for s in sup_label_ratio.keys():
+        sup_label_ratio_results += \
+            "Label {}: {} ".format(s, sup_label_ratio[s] / (args.num_batches * args.batch_size))
+    print(sup_label_ratio_results)
 
-        print("Query Label Ratio: ")
-        quer_label_ratio_results = ""
-        for q in quer_label_ratio.keys():
-            quer_label_ratio_results += \
-                "Label {}: {} ".format(q, quer_label_ratio[q] / (args.num_batches * args.batch_size))
-        print(quer_label_ratio_results)
+    print("Query Label Ratio: ")
+    quer_label_ratio_results = ""
+    for q in quer_label_ratio.keys():
+        quer_label_ratio_results += \
+            "Label {}: {} ".format(q, quer_label_ratio[q] / (args.num_batches * args.batch_size))
+    print(quer_label_ratio_results)
 
-        avg_mask_len = "Average Sentence Length (based on unmasked tokens): Mean: {}, intra-batch std.: {}".format(
-            statistics.mean(mask_average), statistics.mean(mask_batch_std))
-        if len(mask_average) > 1:
-            avg_mask_len += ", inter-batch std.: {}".format(statistics.stdev(mask_average))
-        print(avg_mask_len)
+    avg_mask_len = "Average Sentence Length (based on unmasked tokens): Mean: {}, intra-batch std.: {}".format(
+        statistics.mean(mask_average), statistics.mean(mask_batch_std))
+    if len(mask_average) > 1:
+        avg_mask_len += ", inter-batch std.: {}".format(statistics.stdev(mask_average))
+    print(avg_mask_len)
 
-        print("Average Examples per batch: Support: {}, Query: {}".format(
-            sum(avg_sup_set_examples) / len(avg_sup_set_examples),
-            sum(avg_quer_set_examples) / len(avg_quer_set_examples)))
+    print("Average Examples per batch: Support: {}, Query: {}".format(
+        sum(avg_sup_set_examples) / len(avg_sup_set_examples),
+        sum(avg_quer_set_examples) / len(avg_quer_set_examples)))
 
-        quater_sentence_word_results = ""
-        for w in quater_sentence_word.keys():
-            quater_sentence_word_results += \
-                "{}: {}\n".format(tokenizer.decode([w]), quater_sentence_word[w] / (args.num_batches * args.batch_size))
-        print("Token diversity (at quater position):")
-        print(quater_sentence_word_results)
+    quater_sentence_word_results = ""
+    for w in quater_sentence_word.keys():
+        quater_sentence_word_results += \
+            "{}: {}\n".format(tokenizer.decode([w]), quater_sentence_word[w] / (args.num_batches * args.batch_size))
+    print("Token diversity (at quater position):")
+    print(quater_sentence_word_results)
