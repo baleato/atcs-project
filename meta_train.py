@@ -6,6 +6,7 @@ from datetime import timedelta
 import torch.nn as nn
 import torch
 from transformers import BertTokenizer, AdamW, get_cosine_schedule_with_warmup
+import random
 
 from util import get_args_meta, get_pytorch_device, load_model, get_training_tasks, get_validation_task
 from tasks import *
@@ -279,6 +280,9 @@ if __name__ == '__main__':
     device = get_pytorch_device(args)
     # set seed
     torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
