@@ -209,23 +209,28 @@ def parse_nonlinearity(nonlinearity_str):
 # FIXME: tasks are imported at this point to avoid a circular dependency:
 # tasks [*] -> models [SLClassifier] -> util [parse_nonlinearity]
 from tasks import *
-import tasks
 
 def get_task_by_name(args, task_name):
     if 'Offenseval' == task_name:
-        return tasks.OffensevalTask(cls_dim=args.mlp_dims[-1])
+        return OffensevalTask(cls_dim=args.mlp_dims[-1])
     elif 'SarcasmDetection' == task_name:
-        return tasks.SarcasmDetection(cls_dim=args.mlp_dims[-1])
+        return SarcasmDetection(cls_dim=args.mlp_dims[-1])
     elif 'SentimentAnalysis' == task_name:
-        return tasks.SentimentAnalysis(cls_dim=args.mlp_dims[-1])
+        return SentimentAnalysis(cls_dim=args.mlp_dims[-1])
     elif 'IronySubtaskA' == task_name:
-        return tasks.IronySubtaskA(cls_dim=args.mlp_dims[-1])
+        return IronySubtaskA(cls_dim=args.mlp_dims[-1])
     elif 'IronySubtaskB' == task_name:
-        return tasks.IronySubtaskB(cls_dim=args.mlp_dims[-1])
+        return IronySubtaskB(cls_dim=args.mlp_dims[-1])
     elif 'Abuse' == task_name:
-        return tasks.Abuse(cls_dim=args.mlp_dims[-1])
+        return Abuse(cls_dim=args.mlp_dims[-1])
     elif 'Politeness' == task_name:
-        return tasks.Politeness(cls_dim=args.mlp_dims[-1])
+        return Politeness(cls_dim=args.mlp_dims[-1])
+    elif task_name.startswith('SemEval18_'):
+        emotion = task_name.split('_')[1]
+        data_path = './data/semeval18_{}_train.txt'.format(emotion)
+        if not os.path.isfile(data_path):
+            raise ValueError('Dataset for emotion "{}" not found - {}'.format(emotion, data_path))
+        return SemEval18SingleEmotionTask(emotion, cls_dim=args.mlp_dims[-1], data_path=data_path)
     else:
         raise ValueError('Unknown task: {}'.format(task_name))
 
@@ -267,6 +272,7 @@ def get_args():
 TASK_NAMES = [
     'Abuse', 'IronySubtaskA', 'IronySubtaskB', 'Offenseval', 'Politeness',
     'SarcasmDetection', 'SemEval18', 'SentimentAnalysis',
+    'SemEval18_fear', 'SemEval18_optimism', 'SemEval18_sadness'
 ]
 def get_args_meta(args=None):
     parser = ArgumentParser()

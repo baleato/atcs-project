@@ -239,6 +239,7 @@ class SemEval18Task(Task):
         self.num_classes = len(self.emotions)
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = BCEWithLogitsLoss()
+        self.data_path = './data/semeval18_task1_class/{}.txt'
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
@@ -250,7 +251,7 @@ class SemEval18Task(Task):
         """
         assert split in ['train', 'dev', 'test']
         # Load dataset into Pandas Dataframe, then extract columns as numpy arrays
-        data_df = pd.read_csv('./data/semeval18_task1_class/{}.txt'.format(split), sep='\t')
+        data_df = pd.read_csv(self.data_path.format(split), sep='\t')
         sentences = data_df.Tweet.values
         sentences = adjust_twitter_tokenization(sentences)
         labels = data_df[self.emotions].values
@@ -287,7 +288,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
     EMOTIONS = ['anger', 'anticipation', 'disgust', 'fear', 'joy', 'love',
                 'optimism', 'pessimism', 'sadness', 'surprise', 'trust']
 
-    def __init__(self, emotion, fn_tokenizer=bert_tokenizer, cls_dim=768):
+    def __init__(self, emotion, fn_tokenizer=bert_tokenizer, cls_dim=768, data_path='./data/semeval18_task1_class/{}.txt'):
         assert emotion in self.EMOTIONS
         self.emotion = emotion
         self.emotions = [self.emotion]
@@ -295,6 +296,7 @@ class SemEval18SingleEmotionTask(SemEval18Task):
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=2)
         self.criterion = CrossEntropyLoss()
         self.num_classes = 2
+        self.data_path = data_path
 
 
     def get_loss(self, predictions, labels):
