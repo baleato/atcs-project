@@ -422,7 +422,7 @@ class SentimentAnalysis(Task):
         df = df[df.label != 'neutral']
         df = df[df.label != 'objective']
         self.df = df[df.label != 'objective-OR-neutral']
-        self.df_train, self.df_dev, self.df_test = _train_dev_test_split(self.df)
+        self.df_train  = self.df
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
@@ -432,6 +432,7 @@ class SentimentAnalysis(Task):
         Returns:
             Iterable for the specified split
         """
+        assert split == 'train', 'Unknown split ({}) for SentimentAnalysis task, only "train" split available'.format(split)
         # current iter will have only two classes; we could extend it to have more
         df = self._get_dataframe(split)
 
@@ -466,7 +467,7 @@ class IronySubtaskA(Task):
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
         self.df = pd.read_csv('data/sem_eval_2018/SemEval2018-T3-train-taskA.txt', sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
-        self.df_train, self.df_dev, self.df_test = _train_dev_test_split(self.df)
+        self.df_train = self.df
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
@@ -476,6 +477,7 @@ class IronySubtaskA(Task):
         Returns:
             Iterable for the specified split
         """
+        assert split == 'train', 'Unknown split ({}) for IronySubtaskA task, only "train" split available'.format(split)
         # current iter will have only two classes; we could extend it to have more
         df = self._get_dataframe(split)
 
@@ -609,16 +611,11 @@ class Politeness(Task):
         # Due to the use of the CrossEntropyLoss we need the labels to represent indexes (>=0).
         # Hence we move our labels one up from {-1, 0, 1} to {0, 1, 2}.
         self.df.label = self.df.label + 1
-        self.df_train, self.df_dev, self.df_test = _train_dev_test_split(self.df)
+        self.df_train = self.df
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
-        assert split in ['train', 'dev', 'test']
-        if split == 'train':
-            df = self.df_train
-        elif split == 'dev':
-            df = self.df_dev
-        else:
-            df = self.df_test
+        assert split == 'train', 'Unknown split ({}) for Politeness task, only "train" split available'.format(split)
+        df = self.df_train
         sentences = adjust_twitter_tokenization(df.text)
         input_ids, attention_masks = self.fn_tokenizer(sentences, tokenizer, max_length=max_length)
         labels = torch.tensor(df.label.values)

@@ -16,14 +16,14 @@ class TestModels(unittest.TestCase):
     def setUp(self):
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
-    def _test_task_iters(self, task):
-        for split in ['train', 'dev', 'test']:
+    def _test_task_iters(self, task, splits=['train', 'dev', 'test']):
+        for split in splits:
             task_iter = task.get_iter(split, self.tokenizer)
             print('{} {} {}'.format(task.get_name(), split, len(task_iter)))
 
     def _test_task(self, task):
         classifier = task.get_classifier()
-        task_iter = task.get_iter('dev', self.tokenizer)
+        task_iter = task.get_iter('train', self.tokenizer)
         model = DummyModel()
         for batch in task_iter:
             sentences = batch[0]
@@ -50,7 +50,23 @@ class TestModels(unittest.TestCase):
                 tasks.Abuse(),
                 tasks.Politeness()]:
             self._test_task(task)
-            self._test_task_iters(task)
+            self._test_task_iters(task, ['train'])
+
+
+    def test_Tasks2(self):
+        tasks_array = [
+            tasks.SemEval18SingleEmotionTask('fear', data_path='./data/semeval18_fear_train.txt'),
+            tasks.SemEval18SingleEmotionTask('optimism', data_path='./data/semeval18_optimism_train.txt'),
+            tasks.SemEval18SingleEmotionTask('sadness', data_path='./data/semeval18_sadness_train.txt'),
+            tasks.SarcasmDetection(),
+            tasks.IronySubtaskA(),
+            tasks.Politeness()
+        ]
+        for task in tasks_array:
+            self._test_task_iters(task, ['train'])
+        sampler = tasks.TaskSampler(tasks_array, supp_query_split=True, avoid_repetition=True)
+        train_iter = sampler.get_iter('train', tokenizer=self.tokenizer, batch_size=16, shuffle=True)
+        self.assertEqual(int(1089 / 16) * len(tasks_array), len(train_iter))
 
 
 class DummyTask(tasks.Task):
