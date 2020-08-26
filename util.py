@@ -209,22 +209,23 @@ def parse_nonlinearity(nonlinearity_str):
 # FIXME: tasks are imported at this point to avoid a circular dependency:
 # tasks [*] -> models [SLClassifier] -> util [parse_nonlinearity]
 from tasks import *
+import tasks
 
 def get_task_by_name(args, task_name):
     if 'Offenseval' == task_name:
-        return OffensevalTask(cls_dim=args.mlp_dims[-1])
+        return tasks.OffensevalTask(cls_dim=args.mlp_dims[-1])
     elif 'SarcasmDetection' == task_name:
-        return SarcasmDetection(cls_dim=args.mlp_dims[-1])
+        return tasks.SarcasmDetection(cls_dim=args.mlp_dims[-1])
     elif 'SentimentAnalysis' == task_name:
-        return SentimentAnalysis(cls_dim=args.mlp_dims[-1])
+        return tasks.SentimentAnalysis(cls_dim=args.mlp_dims[-1])
     elif 'IronySubtaskA' == task_name:
-        return IronySubtaskA(cls_dim=args.mlp_dims[-1])
+        return tasks.IronySubtaskA(cls_dim=args.mlp_dims[-1])
     elif 'IronySubtaskB' == task_name:
-        return IronySubtaskB(cls_dim=args.mlp_dims[-1])
+        return tasks.IronySubtaskB(cls_dim=args.mlp_dims[-1])
     elif 'Abuse' == task_name:
-        return Abuse(cls_dim=args.mlp_dims[-1])
+        return tasks.Abuse(cls_dim=args.mlp_dims[-1])
     elif 'Politeness' == task_name:
-        return Politeness(cls_dim=args.mlp_dims[-1])
+        return tasks.Politeness(cls_dim=args.mlp_dims[-1])
     else:
         raise ValueError('Unknown task: {}'.format(task_name))
 
@@ -293,6 +294,7 @@ def get_args_meta(args=None):
     parser.add_argument('--training_tasks', nargs='*', choices=TASK_NAMES,
         default=['SemEval18', 'Offenseval', 'SarcasmDetection'])
     parser.add_argument('--validation_task', default='SentimentAnalysis', choices=TASK_NAMES)
+    parser.add_argument('--seed', type=int, default=111)
     return parser.parse_args(args=args)
 
 def get_test_args():
@@ -319,5 +321,6 @@ def get_test_args():
     parser.add_argument('--init_linear_with_centroids', default=False, action='store_true')
     parser.add_argument('--bert_lr', type=float, default=5e-5)
     parser.add_argument('--distance', choices=['euclidean', 'cosine'], default='euclidean')
+    parser.add_argument('--seed', type=int, default=111)
     args = parser.parse_args()
     return args
