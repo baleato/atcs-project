@@ -215,16 +215,22 @@ def get_task_by_name(args, task_name):
         return OffensevalTask(cls_dim=args.mlp_dims[-1])
     elif 'SarcasmDetection' == task_name:
         return SarcasmDetection(cls_dim=args.mlp_dims[-1])
+    elif 'SarcasmDetection_mod' == task_name:
+        return SarcasmDetection(cls_dim=args.mlp_dims[-1], data_path='data/atcs_sarcasm_data/sarcasm_twitter_train_mod.json')
     elif 'SentimentAnalysis' == task_name:
         return SentimentAnalysis(cls_dim=args.mlp_dims[-1])
     elif 'IronySubtaskA' == task_name:
         return IronySubtaskA(cls_dim=args.mlp_dims[-1])
+    elif 'IronySubtaskA_mod' == task_name:
+        return IronySubtaskA(cls_dim=args.mlp_dims[-1], data_path='data/sem_eval_2018/IronySubtaskA-T3-train-taskA_mod.txt')
     elif 'IronySubtaskB' == task_name:
         return IronySubtaskB(cls_dim=args.mlp_dims[-1])
     elif 'Abuse' == task_name:
         return Abuse(cls_dim=args.mlp_dims[-1])
     elif 'Politeness' == task_name:
         return Politeness(cls_dim=args.mlp_dims[-1])
+    elif 'Politeness_mod' == task_name:
+        return Politeness(cls_dim=args.mlp_dims[-1], data_path='data/stanford_politeness_2013/wikipedia-politeness-corpus_mod.csv')
     elif task_name.startswith('SemEval18_'):
         emotion = task_name.split('_')[1]
         data_path = './data/semeval18_{}_train.txt'.format(emotion)

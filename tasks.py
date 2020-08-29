@@ -364,11 +364,12 @@ class OffensevalTask(Task):
 class SarcasmDetection(Task):
     NAME = 'SarcasmDetection'
 
-    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768, data_path = 'data/atcs_sarcasm_data/sarcasm_twitter_{}.json'):
         self.num_classes = 2
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
+        self.data_path = data_path
 
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
@@ -380,7 +381,7 @@ class SarcasmDetection(Task):
             Iterable for the specified split
         """
         assert split in ['train', 'dev', 'test']
-        df = pd.read_json('data/atcs_sarcasm_data/sarcasm_twitter_{}.json'.format(split), lines=True, encoding='utf8')
+        df = pd.read_json(self.data_path.format(split), lines=True, encoding='utf8')
         df = df.sample(frac=1).reset_index(drop=True)
 
         df['context'] = [l[:2] for l in df['context']]
@@ -461,13 +462,12 @@ class SentimentAnalysis(Task):
 class IronySubtaskA(Task):
     NAME = 'IronySubtaskA'
 
-    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768, data_path='data/sem_eval_2018/SemEval2018-T3-train-taskA.txt'):
         self.num_classes = 2
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
-        self.df = pd.read_csv('data/sem_eval_2018/SemEval2018-T3-train-taskA.txt', sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
-        self.df_train = self.df
+        self.df = pd.read_csv(data_path, sep='\t', header=0, names=['Tweet_index', 'Label', 'Tweet_text'])
 
     def get_iter(self, split, tokenizer, batch_size=16, shuffle=False, random_state=1, max_length=64, supp_query_split=False):
         """
@@ -478,8 +478,7 @@ class IronySubtaskA(Task):
             Iterable for the specified split
         """
         assert split == 'train', 'Unknown split ({}) for IronySubtaskA task, only "train" split available'.format(split)
-        # current iter will have only two classes; we could extend it to have more
-        df = self._get_dataframe(split)
+        df = self.df
 
         sentences = df.Tweet_text.values
         sentences = adjust_twitter_tokenization(sentences)
@@ -596,7 +595,7 @@ class Politeness(Task):
     Stanford Politeness Corpus (Wikipedia). Original annotations: 1 = Polite; 0 = Neutral; -1 = impolite.
     Classes: Impolite(0), Neutral(1), Polite(2)
     """
-    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768):
+    def __init__(self, fn_tokenizer=bert_tokenizer, cls_dim=768, data_path='data/stanford_politeness_2013/wikipedia-politeness-corpus.csv'):
         self.num_classes = 3
         self.classes = {
             0: 'Impolite',
@@ -606,7 +605,7 @@ class Politeness(Task):
         self.classifier = SLClassifier(input_dim=cls_dim, target_dim=self.num_classes)
         self.criterion = CrossEntropyLoss()
         self.fn_tokenizer = fn_tokenizer
-        self.df = pd.read_csv('data/stanford_politeness_2013/wikipedia-politeness-corpus.csv')
+        self.df = pd.read_csv(data_path)
         self.df['annotation'] = self.df.label  # Original classification {-1, 0, 1}
         # Due to the use of the CrossEntropyLoss we need the labels to represent indexes (>=0).
         # Hence we move our labels one up from {-1, 0, 1} to {0, 1, 2}.
