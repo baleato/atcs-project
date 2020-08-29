@@ -7,7 +7,7 @@ df_irony = pd.read_csv('./data/sem_eval_2018/SemEval2018-T3-train-taskA.txt', se
 pd.concat([
     df_irony[df_irony.Label == 0].sample(n=NUM_EXAMPLES_PER_CLASS),
     df_irony[df_irony.Label == 1].sample(n=NUM_EXAMPLES_PER_CLASS)
-]).sort_values('Tweet_index').to_csv('./data/sem_eval_2018/IronySubtaskA-T3-train-taskA_mod.txt', header=['Tweet index', 'Label', 'Tweet text'], index=False, sep='\t')
+]).sort_values('Tweet_index').to_csv('./data/sem_eval_2018/IronySubtaskA-T3-train-taskA_mod.txt', header=['Tweet index', 'Label', 'Tweet text'], index=False, sep='\t', encoding='utf-8')
 
 # SarcasmDetection
 df_sarcasm = pd.read_json('data/atcs_sarcasm_data/sarcasm_twitter_train.json', lines=True, encoding='utf8')
