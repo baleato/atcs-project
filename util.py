@@ -278,7 +278,8 @@ def get_args():
 TASK_NAMES = [
     'Abuse', 'IronySubtaskA', 'IronySubtaskB', 'Offenseval', 'Politeness',
     'SarcasmDetection', 'SemEval18', 'SentimentAnalysis',
-    'SemEval18_fear', 'SemEval18_optimism', 'SemEval18_sadness'
+    'SemEval18_fear', 'SemEval18_optimism', 'SemEval18_sadness',
+    'SarcasmDetection_mod', 'IronySubtaskA_mod', 'Politeness_mod'
 ]
 def get_args_meta(args=None):
     parser = ArgumentParser()
