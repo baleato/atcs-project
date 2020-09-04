@@ -66,6 +66,8 @@ def train(tasks, model, args, device):
     iterations = 0
     iterations, running_loss = 0, 0.0
     best_test_mean = -1
+    best_test_last = -1
+    convergence_tolerance_cnt = 0
     for i in range(args.num_iterations):
 
         # Iterate over the data
@@ -144,6 +146,15 @@ def train(tasks, model, args, device):
                 for f in glob.glob(snapshot_prefix + '*'):
                     if f != snapshot_path:
                         os.remove(f)
+
+            if test_mean > best_test_last:
+                best_test_last = best_test_mean
+                convergence_tolerance_cnt = 0
+            else:
+                convergence_tolerance_cnt += 1
+
+            if convergence_tolerance_cnt == args.convergence_tolerance:
+                break
 
         # saving redundant parameters
         # Save model checkpoints.
